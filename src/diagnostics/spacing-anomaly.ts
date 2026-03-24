@@ -22,6 +22,9 @@ export function checkSpacingAnomaly(tree: ExtractedElement, viewport: Viewport):
 }
 
 function walk(el: ExtractedElement, issues: Issue[]): void {
+  // Skip recursion into SVG subtrees — SVG children have irregular spacing by design
+  if (el.tag === 'svg') return;
+
   const siblings = el.children;
 
   if (siblings.length >= 3) {

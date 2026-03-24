@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Viewport Fit Test — Non-Scrollable Grid</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: sans-serif; }
+  </style>
+</head>
+<!-- Non-scrollable page with grid that doesn't fit -->
+<body style="overflow: hidden; height: 100vh; margin: 0;">
+  <div style="display: grid; grid-template-rows: 40px 1fr 36px 22px; height: 100vh;">
+    <header style="background: #333;">Header</header>
+    <main style="background: #eee;">Main content area</main>
+    <!-- Bottom panel: should be 36px but will be compressed if viewport is too small -->
+    <div class="bottom-panel" style="background: #ddd; overflow: hidden;">
+      <div style="height: 100px;">Panel content that needs 100px but gets compressed</div>
+    </div>
+    <footer style="background: #333;">Status bar</footer>
+  </div>
+</body>
+</html>

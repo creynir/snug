@@ -36,6 +36,7 @@ export { checkSiblingOverlap } from './diagnostics/sibling-overlap.js';
 export { checkTruncation } from './diagnostics/truncation.js';
 export { checkSpacingAnomaly } from './diagnostics/spacing-anomaly.js';
 export { checkAspectRatio } from './diagnostics/aspect-ratio.js';
+export { checkViewportFit } from './diagnostics/viewport-fit.js';
 export { runDiagnostics } from './diagnostics/index.js';
 
 // Reporter

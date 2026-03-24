@@ -277,4 +277,221 @@ describe('checkViewportOverflow', () => {
     expect(issues.some(i => i.element === '.card')).toBe(true);
     expect(issues.find(i => i.element === '.card')!.data?.overflowX).toBe(25);
   });
+
+  // ── Clipping-ancestor context (FOLLOWUP-001 Change 2) ──
+
+  describe('clipping-ancestor context', () => {
+    it('reports error for overflow with no clipping ancestor (existing behavior)', () => {
+      const tree = makeElement({
+        selector: 'body',
+        children: [
+          makeElement({
+            selector: '.wide',
+            bounds: { x: 0, y: 0, w: 1500, h: 200 },
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      const issue = issues.find(i => i.element === '.wide');
+      expect(issue).toBeDefined();
+      expect(issue!.severity).toBe('error');
+      expect(issue!.context).toBeUndefined();
+    });
+
+    it('reports warning (not error) for overflow inside overflow:hidden parent', () => {
+      const tree = makeElement({
+        selector: 'body',
+        children: [
+          makeElement({
+            selector: '.clipping-wrapper',
+            bounds: { x: 0, y: 0, w: 800, h: 200 },
+            computed: { overflow: 'hidden' },
+            children: [
+              makeElement({
+                selector: '.clipped-wide',
+                bounds: { x: 0, y: 0, w: 1500, h: 200 },
+              }),
+            ],
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      const issue = issues.find(i => i.element === '.clipped-wide');
+      expect(issue).toBeDefined();
+      expect(issue!.severity).toBe('warning');
+    });
+
+    it('reports warning for overflow inside overflow:scroll parent', () => {
+      const tree = makeElement({
+        selector: 'body',
+        children: [
+          makeElement({
+            selector: '.scroll-wrapper',
+            bounds: { x: 0, y: 0, w: 800, h: 200 },
+            computed: { overflow: 'scroll' },
+            children: [
+              makeElement({
+                selector: '.scrolled-wide',
+                bounds: { x: 0, y: 0, w: 1500, h: 200 },
+              }),
+            ],
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      const issue = issues.find(i => i.element === '.scrolled-wide');
+      expect(issue).toBeDefined();
+      expect(issue!.severity).toBe('warning');
+    });
+
+    it('reports warning for overflow inside overflow:auto parent', () => {
+      const tree = makeElement({
+        selector: 'body',
+        children: [
+          makeElement({
+            selector: '.auto-wrapper',
+            bounds: { x: 0, y: 0, w: 800, h: 200 },
+            computed: { overflow: 'auto' },
+            children: [
+              makeElement({
+                selector: '.auto-wide',
+                bounds: { x: 0, y: 0, w: 1500, h: 200 },
+              }),
+            ],
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      const issue = issues.find(i => i.element === '.auto-wide');
+      expect(issue).toBeDefined();
+      expect(issue!.severity).toBe('warning');
+    });
+
+    it('includes context.clippedBy with the clipping ancestor selector', () => {
+      const tree = makeElement({
+        selector: 'body',
+        children: [
+          makeElement({
+            selector: '.clipping-wrapper',
+            bounds: { x: 0, y: 0, w: 800, h: 200 },
+            computed: { overflow: 'hidden' },
+            children: [
+              makeElement({
+                selector: '.clipped-wide',
+                bounds: { x: 0, y: 0, w: 1500, h: 200 },
+              }),
+            ],
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      const issue = issues.find(i => i.element === '.clipped-wide');
+      expect(issue).toBeDefined();
+      expect(issue!.context).toBeDefined();
+      expect(issue!.context!.clippedBy).toBe('.clipping-wrapper');
+    });
+
+    it('detail string mentions the clipping ancestor', () => {
+      const tree = makeElement({
+        selector: 'body',
+        children: [
+          makeElement({
+            selector: '.clipping-wrapper',
+            bounds: { x: 0, y: 0, w: 800, h: 200 },
+            computed: { overflow: 'hidden' },
+            children: [
+              makeElement({
+                selector: '.clipped-wide',
+                bounds: { x: 0, y: 0, w: 1500, h: 200 },
+              }),
+            ],
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      const issue = issues.find(i => i.element === '.clipped-wide');
+      expect(issue).toBeDefined();
+      expect(issue!.detail).toContain('.clipping-wrapper');
+    });
+
+    it('clipping context propagates through multiple nesting levels', () => {
+      const tree = makeElement({
+        selector: 'body',
+        children: [
+          makeElement({
+            selector: '.grandparent',
+            bounds: { x: 0, y: 0, w: 800, h: 200 },
+            computed: { overflow: 'hidden' },
+            children: [
+              makeElement({
+                selector: '.parent',
+                bounds: { x: 0, y: 0, w: 800, h: 200 },
+                children: [
+                  makeElement({
+                    selector: '.grandchild',
+                    bounds: { x: 0, y: 0, w: 1500, h: 200 },
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      const issue = issues.find(i => i.element === '.grandchild');
+      expect(issue).toBeDefined();
+      expect(issue!.severity).toBe('warning');
+      expect(issue!.context).toBeDefined();
+    });
+
+    it('element with its own overflow:hidden that also overflows viewport is still error', () => {
+      // The element IS the clipping root, not clipped BY an ancestor
+      const tree = makeElement({
+        selector: 'body',
+        children: [
+          makeElement({
+            selector: '.self-clipping',
+            bounds: { x: 0, y: 0, w: 1500, h: 200 },
+            computed: { overflow: 'hidden' },
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      const issue = issues.find(i => i.element === '.self-clipping');
+      expect(issue).toBeDefined();
+      expect(issue!.severity).toBe('error');
+    });
+
+    it('multiple clipping ancestors: uses the nearest one', () => {
+      const tree = makeElement({
+        selector: 'body',
+        children: [
+          makeElement({
+            selector: '.outer-clip',
+            bounds: { x: 0, y: 0, w: 800, h: 200 },
+            computed: { overflow: 'hidden' },
+            children: [
+              makeElement({
+                selector: '.inner-clip',
+                bounds: { x: 0, y: 0, w: 800, h: 200 },
+                computed: { overflow: 'hidden' },
+                children: [
+                  makeElement({
+                    selector: '.deep-wide',
+                    bounds: { x: 0, y: 0, w: 1500, h: 200 },
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      const issue = issues.find(i => i.element === '.deep-wide');
+      expect(issue).toBeDefined();
+      expect(issue!.severity).toBe('warning');
+      expect(issue!.context).toBeDefined();
+      expect(issue!.context!.clippedBy).toBe('.inner-clip');
+    });
+  });
 });

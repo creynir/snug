@@ -445,4 +445,79 @@ describe('checkSpacingAnomaly', () => {
     const issues = checkSpacingAnomaly(tree, viewport);
     expect(issues).toEqual([]);
   });
+
+  // ── SVG subtree skip (FOLLOWUP-001 Change 3) ──
+
+  describe('SVG subtree skip', () => {
+    it('does not check spacing between SVG children (circle, path, line inside svg)', () => {
+      // SVG children overlap/have irregular spacing by design.
+      // The diagnostic should NOT recurse into the SVG subtree.
+      const tree = makeElement({
+        selector: '.toolbar',
+        children: [
+          makeElement({
+            selector: 'svg.icon',
+            tag: 'svg',
+            bounds: { x: 0, y: 0, w: 24, h: 24 },
+            children: [
+              makeElement({ selector: 'circle', tag: 'circle', bounds: { x: 2, y: 2, w: 10, h: 10 } }),
+              makeElement({ selector: 'path', tag: 'path', bounds: { x: 5, y: 5, w: 14, h: 14 } }),
+              makeElement({ selector: 'line', tag: 'line', bounds: { x: 0, y: 0, w: 24, h: 24 } }),
+              // These have irregular spacing but should not be checked
+            ],
+          }),
+        ],
+      });
+      const issues = checkSpacingAnomaly(tree, viewport);
+      // No spacing issues should be reported for SVG children
+      const svgChildIssues = issues.filter(
+        i => ['circle', 'path', 'line'].includes(i.element) || ['circle', 'path', 'line'].includes(i.element2 ?? ''),
+      );
+      expect(svgChildIssues).toEqual([]);
+    });
+
+    it('still checks spacing between SVG element and non-SVG siblings', () => {
+      // The SVG element itself participates as a sibling for parent-level checks.
+      // Spacing between svg and div IS checked.
+      const tree = makeElement({
+        selector: '.toolbar',
+        children: [
+          makeElement({ selector: '.btn-a', tag: 'button', bounds: { x: 0, y: 0, w: 40, h: 40 } }),
+          makeElement({ selector: 'svg.icon', tag: 'svg', bounds: { x: 56, y: 0, w: 24, h: 40 } }),   // gap 16
+          makeElement({ selector: '.btn-b', tag: 'button', bounds: { x: 96, y: 0, w: 40, h: 40 } }),   // gap 16
+          makeElement({ selector: '.btn-c', tag: 'button', bounds: { x: 196, y: 0, w: 40, h: 40 } }),  // gap 60 ← outlier
+        ],
+      });
+      const issues = checkSpacingAnomaly(tree, viewport);
+      // Should detect the spacing anomaly between .btn-b and .btn-c
+      expect(issues.length).toBeGreaterThanOrEqual(1);
+      expect(issues.some(i => i.element === '.btn-c')).toBe(true);
+    });
+
+    it('does not recurse into SVG subtrees', () => {
+      // Even if SVG children have enough siblings to trigger the 3-sibling check,
+      // the diagnostic must not look inside the SVG.
+      const tree = makeElement({
+        selector: '.container',
+        children: [
+          makeElement({
+            selector: 'svg.chart',
+            tag: 'svg',
+            bounds: { x: 0, y: 0, w: 200, h: 200 },
+            children: [
+              // 5 rect children with wildly irregular spacing — would trigger anomaly if checked
+              makeElement({ selector: 'rect.bar-1', tag: 'rect', bounds: { x: 0, y: 0, w: 30, h: 100 } }),
+              makeElement({ selector: 'rect.bar-2', tag: 'rect', bounds: { x: 40, y: 0, w: 30, h: 120 } }),  // gap 10
+              makeElement({ selector: 'rect.bar-3', tag: 'rect', bounds: { x: 80, y: 0, w: 30, h: 80 } }),   // gap 10
+              makeElement({ selector: 'rect.bar-4', tag: 'rect', bounds: { x: 120, y: 0, w: 30, h: 150 } }), // gap 10
+              makeElement({ selector: 'rect.bar-5', tag: 'rect', bounds: { x: 200, y: 0, w: 30, h: 90 } }),  // gap 50 ← would be outlier
+            ],
+          }),
+        ],
+      });
+      const issues = checkSpacingAnomaly(tree, viewport);
+      // No issues from SVG subtree
+      expect(issues).toEqual([]);
+    });
+  });
 });
