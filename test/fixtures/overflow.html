@@ -32,5 +32,11 @@
   <div class="wide-banner">Too wide for viewport</div>
   <div class="shifted-left">Shifted left</div>
   <div class="normal">Normal element</div>
+  <!-- Clipped overflow — should be warning, not error -->
+  <div class="clipping-wrapper" style="overflow: hidden; width: 800px; height: 200px;">
+    <div class="clipped-wide" style="width: 1500px; height: 200px; background: #9b59b6;">
+      Wide but clipped by parent
+    </div>
+  </div>
 </body>
 </html>

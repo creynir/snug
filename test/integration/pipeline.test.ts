@@ -262,6 +262,83 @@ describe('full pipeline (integration)', () => {
     expect(report.viewport).toEqual({ width: 375, height: 667 });
   }, 30000);
 
+  // ── Viewport-fit detection (FOLLOWUP-001 Change 1) ──
+
+  it('detects viewport-fit issues on viewport-fit.html fixture', async () => {
+    const { report } = await check({
+      file: resolve(FIXTURES, 'viewport-fit.html'),
+      width: 1280,
+      height: 600,
+      keepAlive: 0,
+    });
+
+    const viewportFitIssues = report.issues.filter(
+      (i) => i.type === 'viewport-fit',
+    );
+    expect(viewportFitIssues.length).toBeGreaterThan(0);
+  }, 30000);
+
+  it('does NOT flag viewport-fit on clean.html (scrollable)', async () => {
+    const { report } = await check({
+      file: resolve(FIXTURES, 'clean.html'),
+      keepAlive: 0,
+    });
+
+    const viewportFitIssues = report.issues.filter(
+      (i) => i.type === 'viewport-fit',
+    );
+    expect(viewportFitIssues).toEqual([]);
+  }, 30000);
+
+  // ── Clipping-ancestor context (FOLLOWUP-001 Change 2) ──
+
+  it('overflow inside overflow:hidden parent reports warning with context.clippedBy', async () => {
+    const { report } = await check({
+      file: resolve(FIXTURES, 'overflow.html'),
+      keepAlive: 0,
+    });
+
+    const overflows = report.issues.filter(
+      (i) => i.type === 'viewport-overflow',
+    );
+
+    // .clipped-wide is inside .clipping-wrapper (overflow:hidden)
+    // It should be reported as a warning with context.clippedBy
+    const clippedIssue = overflows.find(
+      (i) => i.element?.includes('clipped-wide') || i.element?.includes('clipped_wide'),
+    );
+    if (clippedIssue) {
+      expect(clippedIssue.severity).toBe('warning');
+      expect(clippedIssue.context).toBeDefined();
+      expect(clippedIssue.context!.clippedBy).toBeDefined();
+    } else {
+      // If the clipped-wide element doesn't overflow viewport (it's 1500px wide),
+      // the issue should still be reported since it exceeds viewport width
+      expect(overflows.some(
+        (i) => i.context?.clippedBy !== undefined,
+      )).toBe(true);
+    }
+  }, 30000);
+
+  it('overflow without clipping parent still reports error', async () => {
+    const { report } = await check({
+      file: resolve(FIXTURES, 'overflow.html'),
+      keepAlive: 0,
+    });
+
+    const overflows = report.issues.filter(
+      (i) => i.type === 'viewport-overflow',
+    );
+
+    // .wide-banner has no clipping ancestor — should remain error
+    const unclippedIssue = overflows.find(
+      (i) => i.element?.includes('wide-banner') || i.element?.includes('wide_banner'),
+    );
+    expect(unclippedIssue).toBeDefined();
+    expect(unclippedIssue!.severity).toBe('error');
+    expect(unclippedIssue!.context).toBeUndefined();
+  }, 30000);
+
   // ── Depth limiting through pipeline ──
 
   it('respects depth option passed through check()', async () => {

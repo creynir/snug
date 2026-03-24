@@ -516,4 +516,106 @@ describe('checkSiblingOverlap', () => {
     const issues = checkSiblingOverlap(tree, viewport);
     expect(issues).toEqual([]);
   });
+
+  // ── SVG subtree skip (FOLLOWUP-001 Change 3) ──
+
+  describe('SVG subtree skip', () => {
+    it('does not check overlap between SVG children (path, polyline inside svg)', () => {
+      // SVG drawing primitives overlap by design (an icon is composed of overlapping shapes).
+      // The diagnostic should NOT recurse into SVG subtrees.
+      const tree = makeElement({
+        selector: '.icon-container',
+        children: [
+          makeElement({
+            selector: 'svg.icon',
+            tag: 'svg',
+            bounds: { x: 0, y: 0, w: 24, h: 24 },
+            children: [
+              makeElement({
+                selector: 'path.stroke',
+                tag: 'path',
+                bounds: { x: 0, y: 0, w: 20, h: 20 },
+                computed: { position: 'static' },
+              }),
+              makeElement({
+                selector: 'polyline.arrow',
+                tag: 'polyline',
+                bounds: { x: 5, y: 5, w: 14, h: 14 },
+                computed: { position: 'static' },
+              }),
+              // 89% overlap — normal for icon drawing, should NOT be flagged
+            ],
+          }),
+        ],
+      });
+      const issues = checkSiblingOverlap(tree, viewport);
+      // No overlap issues from SVG internals
+      const svgChildIssues = issues.filter(
+        i =>
+          ['path.stroke', 'polyline.arrow'].includes(i.element) ||
+          ['path.stroke', 'polyline.arrow'].includes(i.element2 ?? ''),
+      );
+      expect(svgChildIssues).toEqual([]);
+    });
+
+    it('still checks overlap between SVG element and non-SVG siblings', () => {
+      // The SVG element itself participates as a sibling.
+      const tree = makeElement({
+        selector: '.toolbar',
+        children: [
+          makeElement({
+            selector: 'svg.icon',
+            tag: 'svg',
+            bounds: { x: 0, y: 0, w: 100, h: 100 },
+          }),
+          makeElement({
+            selector: '.label',
+            tag: 'span',
+            bounds: { x: 20, y: 20, w: 100, h: 100 },
+            // Significant overlap with the SVG element
+          }),
+        ],
+      });
+      const issues = checkSiblingOverlap(tree, viewport);
+      // Should detect overlap between svg and span at the parent level
+      expect(issues.length).toBeGreaterThanOrEqual(1);
+      expect(
+        issues.some(
+          i =>
+            (i.element === 'svg.icon' && i.element2 === '.label') ||
+            (i.element === '.label' && i.element2 === 'svg.icon'),
+        ),
+      ).toBe(true);
+    });
+
+    it('does not recurse into SVG subtrees', () => {
+      // Even if SVG children have significant overlaps that would normally be flagged,
+      // the diagnostic must skip them entirely.
+      const tree = makeElement({
+        selector: '.container',
+        children: [
+          makeElement({
+            selector: 'svg.chart',
+            tag: 'svg',
+            bounds: { x: 0, y: 0, w: 200, h: 200 },
+            children: [
+              makeElement({
+                selector: 'rect.bg',
+                tag: 'rect',
+                bounds: { x: 0, y: 0, w: 200, h: 200 },
+              }),
+              makeElement({
+                selector: 'circle.point',
+                tag: 'circle',
+                bounds: { x: 50, y: 50, w: 100, h: 100 },
+              }),
+              // 100% overlap of circle within rect — normal for SVG, should not be flagged
+            ],
+          }),
+        ],
+      });
+      const issues = checkSiblingOverlap(tree, viewport);
+      expect(issues).toEqual([]);
+    });
+  });
 });
