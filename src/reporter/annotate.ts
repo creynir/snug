@@ -1,4 +1,9 @@
-import type { AnnotatedNode, ExtractedElement, Issue } from '../types.js';
+import type {
+  AnnotatedNode,
+  AnnotatedIssue,
+  ExtractedElement,
+  Issue,
+} from '../types.js';
 
 /**
  * Annotate the extracted DOM tree with diagnostic issues.
@@ -22,12 +27,68 @@ export function annotateTree(
   tree: ExtractedElement,
   issues: Issue[],
 ): AnnotatedNode {
-  // TODO: implement per HLD §3.6
-  // - Build Map<selector, Issue[]> from issues (keyed by issue.element)
-  // - Recursive walk of tree
-  // - Format label: `${selector} [${bounds.x},${bounds.y} ${bounds.w}x${bounds.h}]`
-  // - Match issues to nodes by selector
-  // - Only attach computed when issues exist
-  // - Recurse into children
-  throw new Error('Not implemented');
+  // 1. Build Map<selector, Issue[]> from issues (keyed by issue.element)
+  const issueMap = new Map<string, Issue[]>();
+  for (const issue of issues) {
+    const list = issueMap.get(issue.element);
+    if (list) {
+      list.push(issue);
+    } else {
+      issueMap.set(issue.element, [issue]);
+    }
+  }
+
+  // 2. Recursive walk
+  return walkNode(tree, issueMap);
+}
+
+function walkNode(
+  node: ExtractedElement,
+  issueMap: Map<string, Issue[]>,
+): AnnotatedNode {
+  const { selector, bounds, text, computed, children } = node;
+
+  // Format label: "selector [x,y wxh]"
+  const label = `${selector} [${bounds.x},${bounds.y} ${bounds.w}x${bounds.h}]`;
+
+  // Look up issues for this node
+  const nodeIssues = issueMap.get(selector);
+  const hasIssues = nodeIssues !== undefined && nodeIssues.length > 0;
+
+  // Build the annotated node
+  const result: AnnotatedNode = { label };
+
+  // Preserve text if present
+  if (text !== undefined) {
+    result.text = text;
+  }
+
+  // Map Issues to AnnotatedIssues (strip to type, severity, detail, data)
+  if (hasIssues) {
+    result.issues = nodeIssues.map(toAnnotatedIssue);
+  }
+
+  // Computed styles only on nodes with issues
+  if (hasIssues && computed !== undefined) {
+    result.computed = computed;
+  }
+
+  // Recurse children
+  if (children.length > 0) {
+    result.children = children.map((child) => walkNode(child, issueMap));
+  }
+
+  return result;
+}
+
+function toAnnotatedIssue(issue: Issue): AnnotatedIssue {
+  const result: AnnotatedIssue = {
+    type: issue.type,
+    severity: issue.severity,
+    detail: issue.detail,
+  };
+  if (issue.data !== undefined) {
+    result.data = issue.data;
+  }
+  return result;
 }
