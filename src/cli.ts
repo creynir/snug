@@ -123,7 +123,9 @@ async function main(): Promise<void> {
     process.exit(0);
   } finally {
     if (tmpFile) {
-      try { unlinkSync(tmpFile); } catch {}
+      try {
+        unlinkSync(tmpFile);
+      } catch {}
     }
   }
 }

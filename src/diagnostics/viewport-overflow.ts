@@ -26,8 +26,12 @@ function isClippingElement(el: ExtractedElement): boolean {
   const overflow = el.computed?.overflow as string | undefined;
   const overflowX = el.computed?.overflowX as string | undefined;
   return (
-    overflow === 'hidden' || overflow === 'scroll' || overflow === 'auto' ||
-    overflowX === 'hidden' || overflowX === 'scroll' || overflowX === 'auto'
+    overflow === 'hidden' ||
+    overflow === 'scroll' ||
+    overflow === 'auto' ||
+    overflowX === 'hidden' ||
+    overflowX === 'scroll' ||
+    overflowX === 'auto'
   );
 }
 

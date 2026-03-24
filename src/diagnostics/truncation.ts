@@ -13,7 +13,7 @@ import type { ExtractedElement, Issue, Viewport } from '../types.js';
  *
  * See HLD §3.5.4 for full specification.
  */
-export function checkTruncation(tree: ExtractedElement, viewport: Viewport): Issue[] {
+export function checkTruncation(tree: ExtractedElement, _viewport: Viewport): Issue[] {
   const issues: Issue[] = [];
   walk(tree, issues);
   return issues;
@@ -51,7 +51,11 @@ function walk(el: ExtractedElement, issues: Issue[]): void {
         element: el.selector,
         detail: `Content truncated vertically. scrollHeight=${el.scroll.scrollHeight} > clientHeight=${el.scroll.clientHeight}, clipped by ${clippedPx}px`,
         computed: cs,
-        data: { scrollHeight: el.scroll.scrollHeight, clientHeight: el.scroll.clientHeight, clippedPx },
+        data: {
+          scrollHeight: el.scroll.scrollHeight,
+          clientHeight: el.scroll.clientHeight,
+          clippedPx,
+        },
       });
     }
   }

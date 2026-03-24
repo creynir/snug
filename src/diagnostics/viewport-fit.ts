@@ -43,14 +43,19 @@ function checkChildrenBelowViewport(
     const bottomEdge = child.bounds.y + child.bounds.h;
     if (bottomEdge > viewport.height) {
       // Avoid duplicate issues if the same element was already flagged
-      if (issues.some(i => i.element === child.selector && i.data?.bottomEdge !== undefined)) continue;
+      if (issues.some((i) => i.element === child.selector && i.data?.bottomEdge !== undefined))
+        continue;
       issues.push({
         type: 'viewport-fit',
         severity: 'error',
         element: child.selector,
         detail: `Extends below viewport on non-scrollable page. Bottom edge at ${bottomEdge}px, viewport ends at ${viewport.height}px`,
         computed: child.computed,
-        data: { bottomEdge, viewportHeight: viewport.height, overflowY: bottomEdge - viewport.height },
+        data: {
+          bottomEdge,
+          viewportHeight: viewport.height,
+          overflowY: bottomEdge - viewport.height,
+        },
       });
     }
   }
@@ -67,7 +72,11 @@ function walkCompression(el: ExtractedElement, issues: Issue[]): void {
         element: el.selector,
         detail: `Content compressed on non-scrollable page. Needs ${el.scroll.scrollHeight}px, rendered at ${el.scroll.clientHeight}px (missing ${compressionPx}px)`,
         computed: el.computed,
-        data: { scrollHeight: el.scroll.scrollHeight, clientHeight: el.scroll.clientHeight, compressionPx },
+        data: {
+          scrollHeight: el.scroll.scrollHeight,
+          clientHeight: el.scroll.clientHeight,
+          compressionPx,
+        },
       });
     }
   }

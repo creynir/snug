@@ -106,9 +106,9 @@ function walk(parent: ExtractedElement, issues: Issue[], viewport: Viewport): vo
 
 function determineSeverity(overlapPercent: number, sameZIndex: boolean): IssueSeverity {
   if (sameZIndex) {
-    return overlapPercent > 0.10 ? 'error' : 'warning';
+    return overlapPercent > 0.1 ? 'error' : 'warning';
   }
-  return overlapPercent > 0.50 ? 'error' : 'warning';
+  return overlapPercent > 0.5 ? 'error' : 'warning';
 }
 
 /**

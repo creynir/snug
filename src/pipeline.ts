@@ -17,8 +17,9 @@ export function createAdapter(options: CheckOptions): BrowserAdapter {
 /**
  * Count all elements in the tree recursively.
  */
-export function countElements(tree: { children: { children: any }[] }): number {
-  return 1 + tree.children.reduce((sum, child) => sum + countElements(child), 0);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function countElements(tree: { children: any[] }): number {
+  return 1 + tree.children.reduce((sum: number, child: { children: any[] }) => sum + countElements(child), 0);
 }
 
 /**

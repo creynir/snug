@@ -12,7 +12,7 @@ import type { ExtractedElement, Issue, IssueSeverity, Viewport } from '../types.
  *
  * See HLD §3.5.6 for full specification.
  */
-export function checkAspectRatio(tree: ExtractedElement, viewport: Viewport): Issue[] {
+export function checkAspectRatio(tree: ExtractedElement, _viewport: Viewport): Issue[] {
   const issues: Issue[] = [];
   walk(tree, issues);
   return issues;

@@ -13,7 +13,7 @@ import type { ExtractedElement, Issue, IssueSeverity, Viewport } from '../types.
  *
  * See HLD §3.5.2 for full specification.
  */
-export function checkContainment(tree: ExtractedElement, viewport: Viewport): Issue[] {
+export function checkContainment(tree: ExtractedElement, _viewport: Viewport): Issue[] {
   const issues: Issue[] = [];
   walk(tree, issues);
   return issues;
@@ -66,7 +66,13 @@ function walk(parent: ExtractedElement, issues: Issue[]): void {
       if (overflowRight > 0) sides.push(`right(${overflowRight}px)`);
       if (overflowBottom > 0) sides.push(`bottom(${overflowBottom}px)`);
 
-      const edgeMounted = isEdgeMounted(child, overflowLeft, overflowRight, overflowTop, overflowBottom);
+      const edgeMounted = isEdgeMounted(
+        child,
+        overflowLeft,
+        overflowRight,
+        overflowTop,
+        overflowBottom,
+      );
 
       if (edgeMounted) {
         severity = 'warning';

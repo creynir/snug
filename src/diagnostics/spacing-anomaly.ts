@@ -15,7 +15,7 @@ import type { ExtractedElement, Issue, Viewport } from '../types.js';
  *
  * See HLD §3.5.5 for full specification.
  */
-export function checkSpacingAnomaly(tree: ExtractedElement, viewport: Viewport): Issue[] {
+export function checkSpacingAnomaly(tree: ExtractedElement, _viewport: Viewport): Issue[] {
   const issues: Issue[] = [];
   walk(tree, issues);
   return issues;
@@ -30,9 +30,11 @@ function walk(el: ExtractedElement, issues: Issue[]): void {
   const siblings = el.children;
 
   // Skip spacing check when all children are inline (text flow controls spacing)
-  const allInline = siblings.length > 0 && siblings.every(
-    c => c.computed?.display !== undefined && INLINE_DISPLAYS.has(c.computed.display),
-  );
+  const allInline =
+    siblings.length > 0 &&
+    siblings.every(
+      (c) => c.computed?.display !== undefined && INLINE_DISPLAYS.has(c.computed.display),
+    );
 
   if (siblings.length >= 3 && !allInline) {
     const axis = detectAxis(siblings);

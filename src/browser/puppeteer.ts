@@ -144,7 +144,8 @@ class PuppeteerPageHandle implements PageHandle {
     if (typeof fn === 'string') {
       return this.page.evaluate(fn) as Promise<T>;
     }
-    return this.page.evaluate(fn, ...args);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return this.page.evaluate(fn as any, ...args) as Promise<T>;
   }
 
   viewport(): Viewport {

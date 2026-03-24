@@ -6,19 +6,36 @@ import type { ExtractedElement, ExtractionOptions, PageHandle, Viewport } from '
  * — no closures, no imports.
  */
 function extractionScript(opts: { depth: number; includeHidden: boolean }): ExtractedElement {
-  const SKIP_TAGS = new Set([
-    'script', 'style', 'link', 'meta', 'noscript', 'br', 'wbr',
-  ]);
+  const SKIP_TAGS = new Set(['script', 'style', 'link', 'meta', 'noscript', 'br', 'wbr']);
 
   const SPATIAL_PROPS = [
-    'position', 'display', 'overflow', 'overflowX', 'overflowY',
+    'position',
+    'display',
+    'overflow',
+    'overflowX',
+    'overflowY',
     'zIndex',
-    'marginTop', 'marginRight', 'marginBottom', 'marginLeft',
-    'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
-    'top', 'right', 'bottom', 'left',
-    'transform', 'width', 'height',
-    'flexDirection', 'flexWrap', 'justifyContent', 'alignItems',
-    'gridTemplateColumns', 'gridTemplateRows',
+    'marginTop',
+    'marginRight',
+    'marginBottom',
+    'marginLeft',
+    'paddingTop',
+    'paddingRight',
+    'paddingBottom',
+    'paddingLeft',
+    'top',
+    'right',
+    'bottom',
+    'left',
+    'transform',
+    'width',
+    'height',
+    'flexDirection',
+    'flexWrap',
+    'justifyContent',
+    'alignItems',
+    'gridTemplateColumns',
+    'gridTemplateRows',
     'textOverflow',
   ];
 
@@ -33,9 +50,7 @@ function extractionScript(opts: { depth: number; includeHidden: boolean }): Extr
     if (!parent) return base;
 
     // Add :nth-of-type if there are siblings with the same tag
-    const siblings = Array.from(parent.children).filter(
-      (s) => s.tagName === el.tagName,
-    );
+    const siblings = Array.from(parent.children).filter((s) => s.tagName === el.tagName);
     if (siblings.length > 1) {
       const idx = siblings.indexOf(el) + 1;
       return `${base}:nth-of-type(${idx})`;
@@ -46,9 +61,16 @@ function extractionScript(opts: { depth: number; includeHidden: boolean }): Extr
 
   // Properties where 'auto' is the default and should be filtered
   const AUTO_IS_DEFAULT = new Set([
-    'width', 'height',
-    'top', 'right', 'bottom', 'left',
-    'marginTop', 'marginRight', 'marginBottom', 'marginLeft',
+    'width',
+    'height',
+    'top',
+    'right',
+    'bottom',
+    'left',
+    'marginTop',
+    'marginRight',
+    'marginBottom',
+    'marginLeft',
     'zIndex',
   ]);
 
@@ -56,9 +78,7 @@ function extractionScript(opts: { depth: number; includeHidden: boolean }): Extr
     const cs = getComputedStyle(el);
     const result: Record<string, string> = {};
     for (const prop of SPATIAL_PROPS) {
-      const val = cs.getPropertyValue(
-        prop.replace(/([A-Z])/g, '-$1').toLowerCase(),
-      );
+      const val = cs.getPropertyValue(prop.replace(/([A-Z])/g, '-$1').toLowerCase());
       if (!val) continue;
       if (val === 'none' || val === 'normal' || val === '0px') continue;
       if (val === 'auto' && AUTO_IS_DEFAULT.has(prop)) continue;
@@ -152,12 +172,14 @@ function extractionScript(opts: { depth: number; includeHidden: boolean }): Extr
     };
   }
 
-  return traverse(body, 0) ?? {
-    selector: 'body',
-    tag: 'body',
-    bounds: { x: 0, y: 0, w: 0, h: 0 },
-    children: [],
-  };
+  return (
+    traverse(body, 0) ?? {
+      selector: 'body',
+      tag: 'body',
+      bounds: { x: 0, y: 0, w: 0, h: 0 },
+      children: [],
+    }
+  );
 }
 
 export async function extractDOM(

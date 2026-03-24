@@ -1,4 +1,4 @@
-import { readFile, writeFile, unlink, stat } from 'node:fs/promises';
+import { readFile, writeFile, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 

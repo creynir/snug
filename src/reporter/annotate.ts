@@ -1,9 +1,4 @@
-import type {
-  AnnotatedNode,
-  AnnotatedIssue,
-  ExtractedElement,
-  Issue,
-} from '../types.js';
+import type { AnnotatedNode, AnnotatedIssue, ExtractedElement, Issue } from '../types.js';
 
 /**
  * Annotate the extracted DOM tree with diagnostic issues.
@@ -23,10 +18,7 @@ import type {
  *
  * See HLD §3.6 for full specification.
  */
-export function annotateTree(
-  tree: ExtractedElement,
-  issues: Issue[],
-): AnnotatedNode {
+export function annotateTree(tree: ExtractedElement, issues: Issue[]): AnnotatedNode {
   // 1. Build Map<selector, Issue[]> from issues (keyed by issue.element)
   const issueMap = new Map<string, Issue[]>();
   for (const issue of issues) {
@@ -42,10 +34,7 @@ export function annotateTree(
   return walkNode(tree, issueMap);
 }
 
-function walkNode(
-  node: ExtractedElement,
-  issueMap: Map<string, Issue[]>,
-): AnnotatedNode {
+function walkNode(node: ExtractedElement, issueMap: Map<string, Issue[]>): AnnotatedNode {
   const { selector, bounds, text, computed, children } = node;
 
   // Format label: "selector [x,y wxh]"
