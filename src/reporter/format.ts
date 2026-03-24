@@ -1,3 +1,4 @@
+import { stringify } from 'yaml';
 import type { SnugReport } from '../types.js';
 import { annotateTree } from './annotate.js';
 
@@ -17,17 +18,26 @@ import { annotateTree } from './annotate.js';
  * See HLD §3.7 and §5.1 for full output specification.
  */
 export function formatReport(report: SnugReport): string {
-  // TODO: implement per HLD §3.7 and §5.1
-  // 1. Annotate tree: annotateTree(report.tree, report.issues)
-  // 2. Build report object:
-  //    - viewport: { width, height }
-  //    - element_count: report.elementCount
-  //    - summary: { errors: count, warnings: count }
-  //    - issues: report.issues (flat list)
-  //    - tree: annotated tree (compact notation)
-  // 3. Serialize with yaml package
-  //    - import { stringify } from 'yaml'
-  //    - stringify(reportObj, { lineWidth: 0 })
-  // 4. Return YAML string
-  throw new Error('Not implemented');
+  // 1. Annotate tree
+  const tree = annotateTree(report.tree, report.issues);
+
+  // 2. Count errors and warnings
+  let errors = 0;
+  let warnings = 0;
+  for (const issue of report.issues) {
+    if (issue.severity === 'error') errors++;
+    else warnings++;
+  }
+
+  // 3. Build report object
+  const obj = {
+    viewport: report.viewport,
+    element_count: report.elementCount,
+    summary: { errors, warnings },
+    issues: report.issues,
+    tree,
+  };
+
+  // 4. Serialize with yaml package
+  return stringify(obj, { lineWidth: 0 });
 }
