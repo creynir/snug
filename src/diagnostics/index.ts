@@ -27,11 +27,8 @@ const DEFAULT_DIAGNOSTICS: DiagnosticFn[] = [
 export function runDiagnostics(
   tree: ExtractedElement,
   viewport: Viewport,
-  diagnostics?: DiagnosticFn[],
+  diagnostics: DiagnosticFn[] = DEFAULT_DIAGNOSTICS,
 ): Issue[] {
-  if (!diagnostics) {
-    throw new Error('Not implemented');
-  }
   const issues: Issue[] = [];
   for (const fn of diagnostics) {
     issues.push(...fn(tree, viewport));
