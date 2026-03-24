@@ -1,17 +1,21 @@
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { check } from './pipeline.js';
 import type { CheckOptions } from './types.js';
 
 /**
  * Read HTML from stdin (blocking).
  * Used when --stdin flag is set.
+ *
+ * Writes stdin content to a temp file and returns the path.
+ * Puppeteer's setContent with networkidle0 hangs after reading fd 0,
+ * so we use a temp file + goto instead.
  */
 function readStdin(): string {
-  // TODO: implement stdin reading with timeout
-  // Use: readFileSync('/dev/stdin', 'utf8') or process.stdin
-  throw new Error('Not implemented');
+  return readFileSync(0, 'utf8');
 }
 
 /**
@@ -31,23 +35,84 @@ function readStdin(): string {
  *   2 — runtime error (file not found, browser crash, etc.)
  */
 async function main(): Promise<void> {
-  // TODO: implement yargs command parsing
-  // - 'check' command with positional [file] argument
-  // - --stdin flag
-  // - --base-url <url>
-  // - --depth <number> (default: 0 = unlimited)
-  // - --width <number> (default: 1280)
-  // - --height <number> (default: 800)
-  // - --keep-alive <seconds> (default: 180)
-  //
-  // Flow:
-  // 1. Parse args → CheckOptions
-  // 2. If --stdin, read HTML from stdin
-  // 3. Call check(options, html?)
-  // 4. Write YAML to stdout
-  // 5. Exit with code 0 (clean) or 1 (issues found)
-  // 6. On error: print to stderr, exit 2
-  throw new Error('Not implemented');
+  const argv = await yargs(hideBin(process.argv))
+    .command('check [file]', 'Check a layout for issues', (yargs) => {
+      return yargs
+        .positional('file', {
+          describe: 'Path to HTML file',
+          type: 'string',
+        })
+        .option('stdin', {
+          describe: 'Read HTML from stdin',
+          type: 'boolean',
+          default: false,
+        })
+        .option('base-url', {
+          describe: 'Base URL for resolving relative resources',
+          type: 'string',
+        })
+        .option('depth', {
+          describe: 'Max DOM depth (0 = unlimited)',
+          type: 'number',
+          default: 0,
+        })
+        .option('width', {
+          describe: 'Viewport width',
+          type: 'number',
+          default: 1280,
+        })
+        .option('height', {
+          describe: 'Viewport height',
+          type: 'number',
+          default: 800,
+        })
+        .option('keep-alive', {
+          describe: 'Keep browser alive for N seconds after check',
+          type: 'number',
+          default: 180,
+        });
+    })
+    .demandCommand(1)
+    .strict()
+    .parse();
+
+  const args = argv as any;
+
+  const options: CheckOptions = {
+    file: args.file,
+    stdin: args.stdin,
+    baseUrl: args.baseUrl,
+    depth: args.depth,
+    width: args.width,
+    height: args.height,
+    keepAlive: args.keepAlive,
+  };
+
+  let tmpFile: string | undefined;
+  try {
+    if (options.stdin) {
+      const html = readStdin();
+      // Write to temp file to avoid Puppeteer setContent + networkidle0
+      // hanging after reading from fd 0.
+      tmpFile = join(tmpdir(), `snug-stdin-${Date.now()}.html`);
+      writeFileSync(tmpFile, html);
+      options.file = tmpFile;
+    }
+
+    const { yaml, report } = await check(options);
+
+    process.stdout.write(yaml);
+
+    if (report.issues.length > 0) {
+      process.exit(1);
+    }
+
+    process.exit(0);
+  } finally {
+    if (tmpFile) {
+      try { unlinkSync(tmpFile); } catch {}
+    }
+  }
 }
 
 main().catch((err) => {

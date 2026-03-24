@@ -17,9 +17,8 @@ export function createAdapter(options: CheckOptions): BrowserAdapter {
 /**
  * Count all elements in the tree recursively.
  */
-function countElements(tree: { children: { children: any }[] }): number {
-  // TODO: implement recursive count
-  throw new Error('Not implemented');
+export function countElements(tree: { children: { children: any }[] }): number {
+  return 1 + tree.children.reduce((sum, child) => sum + countElements(child), 0);
 }
 
 /**
