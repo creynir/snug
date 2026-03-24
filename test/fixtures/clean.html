@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clean Layout — No Issues</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: sans-serif; }
+    header { height: 64px; background: #333; display: flex; align-items: center; padding: 0 20px; }
+    header .logo { width: 120px; height: 40px; background: #666; }
+    main { padding: 40px; }
+    .card-grid { display: flex; gap: 20px; }
+    .card { width: 300px; height: 200px; background: #eee; border-radius: 8px; padding: 16px; }
+    footer { height: 80px; background: #333; margin-top: 40px; padding: 20px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo"></div>
+  </header>
+  <main>
+    <div class="card-grid">
+      <div class="card">Card 1</div>
+      <div class="card">Card 2</div>
+      <div class="card">Card 3</div>
+    </div>
+  </main>
+  <footer>
+    <p>Footer content</p>
+  </footer>
+</body>
+</html>

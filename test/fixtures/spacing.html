@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spacing Anomaly Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: sans-serif; padding: 40px; }
+
+    /* Horizontal spacing — one outlier */
+    .nav {
+      display: flex;
+      margin-bottom: 40px;
+    }
+    .nav-item {
+      height: 32px;
+      padding: 4px 12px;
+      background: #3498db;
+      color: white;
+    }
+    .nav-item:not(:last-child) { margin-right: 16px; }
+    /* Outlier: nav-item-4 has wrong margin */
+    .nav-item.outlier { margin-right: 48px; }
+
+    /* Vertical spacing — consistent */
+    .stack { display: flex; flex-direction: column; gap: 16px; }
+    .stack-item { height: 60px; background: #ecf0f1; padding: 16px; }
+
+    /* Too few items to detect pattern (< 3) */
+    .pair { display: flex; gap: 20px; margin-top: 40px; }
+    .pair-item { width: 100px; height: 60px; background: #bdc3c7; }
+  </style>
+</head>
+<body>
+  <!-- Horizontal with outlier gap -->
+  <nav class="nav">
+    <div class="nav-item">Home</div>
+    <div class="nav-item">About</div>
+    <div class="nav-item">Services</div>
+    <div class="nav-item outlier">Blog</div>
+    <div class="nav-item">Contact</div>
+  </nav>
+
+  <!-- Vertical consistent spacing (no issues) -->
+  <div class="stack">
+    <div class="stack-item">Item 1</div>
+    <div class="stack-item">Item 2</div>
+    <div class="stack-item">Item 3</div>
+    <div class="stack-item">Item 4</div>
+  </div>
+
+  <!-- Too few to detect pattern (should skip) -->
+  <div class="pair">
+    <div class="pair-item">A</div>
+    <div class="pair-item">B</div>
+  </div>
+</body>
+</html>

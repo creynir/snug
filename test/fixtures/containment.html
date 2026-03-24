@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Containment Violation Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: sans-serif; padding: 40px; }
+    .container {
+      width: 400px;
+      height: 300px;
+      background: #ecf0f1;
+      position: relative;
+    }
+    /* This child overflows the container */
+    .escaped-child {
+      position: absolute;
+      left: -30px;
+      top: -20px;
+      width: 200px;
+      height: 100px;
+      background: #e74c3c;
+    }
+    /* This child is contained properly */
+    .good-child {
+      width: 200px;
+      height: 100px;
+      margin: 20px;
+      background: #2ecc71;
+    }
+    /* This container clips overflow intentionally — should NOT be flagged */
+    .clipping-container {
+      width: 200px;
+      height: 100px;
+      overflow: hidden;
+      background: #f0f0f0;
+      margin-top: 20px;
+    }
+    .clipping-container .oversized {
+      width: 400px;
+      height: 200px;
+      background: #3498db;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="escaped-child">I escape my parent</div>
+    <div class="good-child">I stay inside</div>
+  </div>
+  <div class="clipping-container">
+    <div class="oversized">Clipped intentionally</div>
+  </div>
+</body>
+</html>

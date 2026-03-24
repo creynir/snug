@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Viewport Overflow Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: sans-serif; }
+    /* This element is wider than the viewport (1280px default) */
+    .wide-banner {
+      width: 1500px;
+      height: 200px;
+      background: #e74c3c;
+    }
+    /* This element overflows left */
+    .shifted-left {
+      width: 300px;
+      height: 100px;
+      margin-left: -50px;
+      background: #3498db;
+    }
+    /* This element is fine */
+    .normal {
+      width: 800px;
+      height: 100px;
+      background: #2ecc71;
+    }
+  </style>
+</head>
+<body>
+  <div class="wide-banner">Too wide for viewport</div>
+  <div class="shifted-left">Shifted left</div>
+  <div class="normal">Normal element</div>
+</body>
+</html>

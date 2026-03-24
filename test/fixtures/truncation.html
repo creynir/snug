@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Text Truncation Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: sans-serif; padding: 40px; }
+
+    /* Horizontal truncation with ellipsis */
+    .truncated-title {
+      width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 16px;
+      margin-bottom: 20px;
+    }
+
+    /* Vertical truncation (clamped text) */
+    .clamped-text {
+      width: 300px;
+      height: 48px;
+      overflow: hidden;
+      font-size: 16px;
+      line-height: 24px;
+      margin-bottom: 20px;
+    }
+
+    /* Not truncated — should pass clean */
+    .full-text {
+      width: 600px;
+      font-size: 16px;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="truncated-title">This is a very long product title that should be truncated with an ellipsis because it exceeds the container width</div>
+  <div class="clamped-text">This paragraph has enough text to overflow vertically. It will be clipped at two lines because the container height is fixed at 48px with overflow hidden.</div>
+  <div class="full-text">This text fits fine.</div>
+</body>
+</html>

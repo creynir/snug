@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aspect Ratio Distortion Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: sans-serif; padding: 40px; }
+    .gallery { display: flex; gap: 20px; flex-wrap: wrap; }
+
+    /* Distorted: forced into a square (natural is 2:1 from placeholder) */
+    .distorted {
+      width: 200px;
+      height: 200px;
+      object-fit: fill;
+    }
+    /* Preserved: uses object-fit: contain */
+    .preserved {
+      width: 200px;
+      height: 200px;
+      object-fit: contain;
+    }
+    /* Natural: no forced dimensions */
+    .natural-size {
+      max-width: 400px;
+    }
+  </style>
+</head>
+<body>
+  <div class="gallery">
+    <!-- 800x400 natural → forced to 200x200 → distorted -->
+    <img class="distorted" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='400'%3E%3Crect fill='%23e74c3c' width='800' height='400'/%3E%3C/svg%3E" alt="Distorted">
+    <!-- Same image but object-fit: contain → not distorted in rendered rect, but img element is square -->
+    <img class="preserved" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='400'%3E%3Crect fill='%232ecc71' width='800' height='400'/%3E%3C/svg%3E" alt="Preserved">
+    <!-- Natural size → no distortion -->
+    <img class="natural-size" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='200'%3E%3Crect fill='%233498db' width='400' height='200'/%3E%3C/svg%3E" alt="Natural">
+  </div>
+</body>
+</html>

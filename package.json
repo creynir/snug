@@ -1,0 +1,31 @@
+{
+  "name": "snug",
+  "version": "0.1.0",
+  "description": "Lightweight layout diagnostics for AI agents. Math instead of pixels.",
+  "type": "module",
+  "bin": {
+    "snug": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest",
+    "check": "tsc --noEmit"
+  },
+  "keywords": ["layout", "diagnostics", "headless", "ai", "agents"],
+  "license": "MIT",
+  "dependencies": {
+    "puppeteer": "^24.0.0",
+    "yaml": "^2.7.0",
+    "yargs": "^17.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/yargs": "^17.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
