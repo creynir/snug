@@ -83,12 +83,11 @@ describe('runDiagnostics', () => {
   // ── Default diagnostics (all 6) ──
 
   it('runs default diagnostics when no custom array is provided', () => {
-    // When called without the 3rd argument, it should use the default 6 diagnostics.
-    // All stubs throw 'Not implemented', so this will throw.
-    // But that's what we expect in the red phase — just verify it attempts to run.
+    // All 6 diagnostics are implemented. A simple element with no issues
+    // should return an empty array without throwing.
     const tree = makeElement();
-    // The stubs throw, so calling with defaults should throw "Not implemented"
-    expect(() => runDiagnostics(tree, viewport)).toThrow();
+    const result = runDiagnostics(tree, viewport);
+    expect(Array.isArray(result)).toBe(true);
   });
 
   // ── Return type ──
