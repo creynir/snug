@@ -24,7 +24,7 @@ export function checkSpacingAnomaly(tree: ExtractedElement, viewport: Viewport):
 function walk(el: ExtractedElement, issues: Issue[]): void {
   const siblings = el.children;
 
-  if (siblings.length >= 4) {
+  if (siblings.length >= 3) {
     const axis = detectAxis(siblings);
 
     const gaps: { gap: number; between: [ExtractedElement, ExtractedElement] }[] = [];
@@ -38,23 +38,27 @@ function walk(el: ExtractedElement, issues: Issue[]): void {
       gaps.push({ gap, between: [siblings[i], siblings[i + 1]] });
     }
 
-    const mode = computeMode(
-      gaps.map((g) => g.gap),
-      2,
-    );
-    const threshold = Math.max(4, Math.abs(mode) * 0.2);
+    const gapValues = gaps.map((g) => g.gap);
+    const mode = computeMode(gapValues, 2);
 
-    for (const { gap, between } of gaps) {
-      const deviation = Math.abs(gap - mode);
-      if (deviation > threshold) {
-        issues.push({
-          type: 'spacing-anomaly',
-          severity: 'warning',
-          element: between[1].selector,
-          element2: between[0].selector,
-          detail: `Gap ${gap}px deviates from sibling pattern (${mode}px). Delta: ${deviation}px`,
-          data: { gap, mode, deviation },
-        });
+    // Require at least 2 gaps to agree on the mode before flagging outliers.
+    // With fewer matching gaps, there is no reliable pattern to detect deviations from.
+    const modeCount = gapValues.filter((v) => Math.abs(v - mode) <= 2).length;
+    if (modeCount >= 2) {
+      const threshold = Math.max(4, Math.abs(mode) * 0.2);
+
+      for (const { gap, between } of gaps) {
+        const deviation = Math.abs(gap - mode);
+        if (deviation > threshold) {
+          issues.push({
+            type: 'spacing-anomaly',
+            severity: 'warning',
+            element: between[1].selector,
+            element2: between[0].selector,
+            detail: `Gap ${gap}px deviates from sibling pattern (${mode}px). Delta: ${deviation}px`,
+            data: { gap, mode, deviation },
+          });
+        }
       }
     }
   }
