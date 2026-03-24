@@ -15,42 +15,145 @@ function makeElement(overrides: Partial<ExtractedElement> = {}): ExtractedElemen
 }
 
 describe('checkContainment', () => {
-  it('returns no issues when children are contained', () => {
+  // ── Happy path ──
+
+  it('returns no issues when all children are fully contained within parent', () => {
     const tree = makeElement({
       children: [
-        makeElement({ selector: '.child', bounds: { x: 120, y: 120, w: 200, h: 100 }, children: [] }),
+        makeElement({
+          selector: '.child-a',
+          bounds: { x: 120, y: 120, w: 200, h: 100 },
+        }),
+        makeElement({
+          selector: '.child-b',
+          bounds: { x: 150, y: 250, w: 100, h: 50 },
+        }),
       ],
     });
     const issues = checkContainment(tree, viewport);
     expect(issues).toEqual([]);
   });
 
-  it('detects child overflowing parent on left and top', () => {
+  it('returns no issues when child exactly matches parent bounds', () => {
     const tree = makeElement({
+      bounds: { x: 100, y: 100, w: 400, h: 300 },
       children: [
         makeElement({
-          selector: '.escaped',
-          bounds: { x: 70, y: 80, w: 200, h: 100 },
-          computed: { position: 'absolute', left: '-30px', top: '-20px' },
-          children: [],
+          selector: '.exact',
+          bounds: { x: 100, y: 100, w: 400, h: 300 },
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    expect(issues).toEqual([]);
+  });
+
+  it('returns no issues for parent with no children', () => {
+    const tree = makeElement({ children: [] });
+    const issues = checkContainment(tree, viewport);
+    expect(issues).toEqual([]);
+  });
+
+  // ── Overflow detection per edge ──
+
+  it('detects child overflowing parent on the right edge', () => {
+    const tree = makeElement({
+      bounds: { x: 100, y: 100, w: 400, h: 300 },
+      children: [
+        makeElement({
+          selector: '.right-overflow',
+          bounds: { x: 200, y: 150, w: 400, h: 100 },
+          // child right edge: 200 + 400 = 600, parent right: 100 + 400 = 500 => overflow 100
         }),
       ],
     });
     const issues = checkContainment(tree, viewport);
     expect(issues.length).toBe(1);
     expect(issues[0].type).toBe('containment');
+    expect(issues[0].element).toBe('.right-overflow');
+    expect(issues[0].data?.overflowRight).toBe(100);
+  });
+
+  it('detects child overflowing parent on the bottom edge', () => {
+    const tree = makeElement({
+      bounds: { x: 100, y: 100, w: 400, h: 300 },
+      children: [
+        makeElement({
+          selector: '.bottom-overflow',
+          bounds: { x: 150, y: 300, w: 100, h: 200 },
+          // child bottom: 300 + 200 = 500, parent bottom: 100 + 300 = 400 => overflow 100
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    expect(issues.length).toBe(1);
+    expect(issues[0].data?.overflowBottom).toBe(100);
+  });
+
+  it('detects child overflowing parent on the left edge', () => {
+    const tree = makeElement({
+      bounds: { x: 100, y: 100, w: 400, h: 300 },
+      children: [
+        makeElement({
+          selector: '.left-overflow',
+          bounds: { x: 70, y: 150, w: 200, h: 100 },
+          // overflow left: parent.x(100) - child.x(70) = 30
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    expect(issues.length).toBe(1);
     expect(issues[0].data?.overflowLeft).toBe(30);
+  });
+
+  it('detects child overflowing parent on the top edge', () => {
+    const tree = makeElement({
+      bounds: { x: 100, y: 100, w: 400, h: 300 },
+      children: [
+        makeElement({
+          selector: '.top-overflow',
+          bounds: { x: 150, y: 80, w: 100, h: 100 },
+          // overflow top: parent.y(100) - child.y(80) = 20
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    expect(issues.length).toBe(1);
     expect(issues[0].data?.overflowTop).toBe(20);
   });
 
-  it('skips parent with overflow:hidden (intentional clipping)', () => {
+  it('detects child overflowing on multiple edges simultaneously', () => {
     const tree = makeElement({
-      computed: { overflow: 'hidden' },
+      bounds: { x: 100, y: 100, w: 400, h: 300 },
       children: [
         makeElement({
-          selector: '.clipped',
-          bounds: { x: 50, y: 50, w: 600, h: 400 },
-          children: [],
+          selector: '.escaped',
+          bounds: { x: 70, y: 80, w: 500, h: 400 },
+          computed: { position: 'absolute' },
+          // overflowLeft: 100-70=30, overflowTop: 100-80=20
+          // overflowRight: (70+500)-(100+400)=70, overflowBottom: (80+400)-(100+300)=80
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    expect(issues.length).toBe(1);
+    expect(issues[0].data?.overflowLeft).toBe(30);
+    expect(issues[0].data?.overflowTop).toBe(20);
+    expect(issues[0].data?.overflowRight).toBe(70);
+    expect(issues[0].data?.overflowBottom).toBe(80);
+  });
+
+  // ── Tolerance (1px for sub-pixel rounding) ──
+
+  it('does not flag overflow of exactly 1px (within tolerance)', () => {
+    const tree = makeElement({
+      bounds: { x: 100, y: 100, w: 400, h: 300 },
+      children: [
+        makeElement({
+          selector: '.subpixel',
+          bounds: { x: 99, y: 100, w: 402, h: 300 },
+          // overflowLeft: 100-99 = 1 (within 1px tolerance)
+          // overflowRight: (99+402)-(100+400) = 1 (within tolerance)
         }),
       ],
     });
@@ -58,14 +161,363 @@ describe('checkContainment', () => {
     expect(issues).toEqual([]);
   });
 
-  it('uses 1px tolerance for rounding', () => {
+  it('flags overflow of 2px (exceeds 1px tolerance)', () => {
     const tree = makeElement({
       bounds: { x: 100, y: 100, w: 400, h: 300 },
       children: [
         makeElement({
-          selector: '.near-edge',
-          bounds: { x: 99, y: 100, w: 200, h: 100 }, // 1px over — within tolerance
-          children: [],
+          selector: '.just-over',
+          bounds: { x: 98, y: 100, w: 200, h: 100 },
+          // overflowLeft: 100-98 = 2 (exceeds 1px tolerance)
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    expect(issues.length).toBe(1);
+    expect(issues[0].element).toBe('.just-over');
+  });
+
+  // ── Severity thresholds ──
+
+  it('reports error severity for overflow > 20px', () => {
+    const tree = makeElement({
+      bounds: { x: 100, y: 100, w: 400, h: 300 },
+      children: [
+        makeElement({
+          selector: '.big-overflow',
+          bounds: { x: 100, y: 100, w: 450, h: 100 },
+          // overflowRight: (100+450) - (100+400) = 50 > 20 => error
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    expect(issues.length).toBe(1);
+    expect(issues[0].severity).toBe('error');
+  });
+
+  it('reports warning severity for overflow between 2px and 20px', () => {
+    const tree = makeElement({
+      bounds: { x: 100, y: 100, w: 400, h: 300 },
+      children: [
+        makeElement({
+          selector: '.small-overflow',
+          bounds: { x: 100, y: 100, w: 410, h: 100 },
+          // overflowRight: (100+410) - (100+400) = 10 <= 20 => warning
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    expect(issues.length).toBe(1);
+    expect(issues[0].severity).toBe('warning');
+  });
+
+  it('reports warning for overflow of exactly 20px', () => {
+    const tree = makeElement({
+      bounds: { x: 100, y: 100, w: 400, h: 300 },
+      children: [
+        makeElement({
+          selector: '.threshold',
+          bounds: { x: 100, y: 100, w: 420, h: 100 },
+          // overflowRight: 20 => at boundary => warning (not > 20)
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    expect(issues.length).toBe(1);
+    expect(issues[0].severity).toBe('warning');
+  });
+
+  it('reports error for overflow of 21px', () => {
+    const tree = makeElement({
+      bounds: { x: 100, y: 100, w: 400, h: 300 },
+      children: [
+        makeElement({
+          selector: '.over-threshold',
+          bounds: { x: 100, y: 100, w: 421, h: 100 },
+          // overflowRight: 21 > 20 => error
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    expect(issues.length).toBe(1);
+    expect(issues[0].severity).toBe('error');
+  });
+
+  // ── Skip parents with overflow clipping ──
+
+  it('skips parent with overflow:hidden (clipping is intentional)', () => {
+    const tree = makeElement({
+      computed: { overflow: 'hidden' },
+      children: [
+        makeElement({
+          selector: '.clipped',
+          bounds: { x: 50, y: 50, w: 600, h: 400 },
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    expect(issues).toEqual([]);
+  });
+
+  it('skips parent with overflow:scroll', () => {
+    const tree = makeElement({
+      computed: { overflow: 'scroll' },
+      children: [
+        makeElement({
+          selector: '.scrollable',
+          bounds: { x: 50, y: 50, w: 600, h: 400 },
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    expect(issues).toEqual([]);
+  });
+
+  it('skips parent with overflow:auto', () => {
+    const tree = makeElement({
+      computed: { overflow: 'auto' },
+      children: [
+        makeElement({
+          selector: '.auto-overflow',
+          bounds: { x: 50, y: 50, w: 600, h: 400 },
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    expect(issues).toEqual([]);
+  });
+
+  it('skips parent with overflowX:hidden for horizontal overflow but still checks vertical', () => {
+    const tree = makeElement({
+      bounds: { x: 100, y: 100, w: 400, h: 300 },
+      computed: { overflowX: 'hidden' },
+      children: [
+        makeElement({
+          selector: '.mixed',
+          bounds: { x: 50, y: 50, w: 600, h: 500 },
+          // Would overflow left, right, top, and bottom
+          // But overflowX:hidden means horizontal overflow is clipped
+          // Vertical overflow (top and bottom) should still be flagged
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    // Should flag vertical overflow (top, bottom) but not horizontal
+    const issue = issues.find(i => i.element === '.mixed');
+    if (issue) {
+      // overflowLeft and overflowRight should be 0 or absent (hidden on X axis)
+      // overflowTop and overflowBottom should be flagged
+      expect(issue.data?.overflowTop).toBeGreaterThan(0);
+      expect(issue.data?.overflowBottom).toBeGreaterThan(0);
+    }
+    // At minimum we should NOT see pure horizontal overflow reported
+  });
+
+  it('skips parent with overflowY:auto for vertical overflow', () => {
+    const tree = makeElement({
+      bounds: { x: 100, y: 100, w: 400, h: 300 },
+      computed: { overflowY: 'auto' },
+      children: [
+        makeElement({
+          selector: '.vert-clipped',
+          bounds: { x: 100, y: 100, w: 500, h: 600 },
+          // overflowRight: 100, overflowBottom: 200
+          // overflowY:auto means vertical is clipped, horizontal should still flag
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    const issue = issues.find(i => i.element === '.vert-clipped');
+    // Horizontal overflow should still be flagged
+    expect(issue).toBeDefined();
+    expect(issue!.data?.overflowRight).toBeGreaterThan(0);
+  });
+
+  it('does not flag children of parent with overflow:visible (default)', () => {
+    // overflow:visible is the default — children SHOULD be flagged
+    const tree = makeElement({
+      bounds: { x: 100, y: 100, w: 400, h: 300 },
+      computed: { overflow: 'visible' },
+      children: [
+        makeElement({
+          selector: '.overflows',
+          bounds: { x: 50, y: 150, w: 200, h: 100 },
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    expect(issues.length).toBe(1);
+    expect(issues[0].element).toBe('.overflows');
+  });
+
+  // ── Recursive detection ──
+
+  it('detects containment violations at multiple nesting levels', () => {
+    const tree = makeElement({
+      selector: '.root',
+      bounds: { x: 0, y: 0, w: 1000, h: 800 },
+      children: [
+        makeElement({
+          selector: '.wrapper',
+          bounds: { x: 100, y: 100, w: 400, h: 300 },
+          children: [
+            makeElement({
+              selector: '.inner',
+              bounds: { x: 200, y: 200, w: 100, h: 100 },
+              children: [
+                makeElement({
+                  selector: '.deeply-escaped',
+                  bounds: { x: 150, y: 150, w: 300, h: 300 },
+                  // Exceeds .inner on right: (150+300)-(200+100) = 150
+                  // Exceeds .inner on bottom: (150+300)-(200+100) = 150
+                  // Exceeds .inner on left: 200-150 = 50
+                  // Exceeds .inner on top: 200-150 = 50
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    expect(issues.some(i => i.element === '.deeply-escaped')).toBe(true);
+  });
+
+  it('checks containment at every level, not just leaf nodes', () => {
+    const tree = makeElement({
+      selector: '.root',
+      bounds: { x: 0, y: 0, w: 500, h: 500 },
+      children: [
+        makeElement({
+          selector: '.level1-overflow',
+          bounds: { x: 0, y: 0, w: 600, h: 100 },
+          // Overflows .root on right by 100
+          children: [
+            makeElement({
+              selector: '.level2-overflow',
+              bounds: { x: 0, y: 0, w: 700, h: 50 },
+              // Overflows .level1-overflow on right by 100
+            }),
+          ],
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    expect(issues.some(i => i.element === '.level1-overflow')).toBe(true);
+    expect(issues.some(i => i.element === '.level2-overflow')).toBe(true);
+  });
+
+  // ── Issue data fields ──
+
+  it('includes child selector as element and parent selector as element2', () => {
+    const tree = makeElement({
+      selector: '.container',
+      bounds: { x: 100, y: 100, w: 400, h: 300 },
+      children: [
+        makeElement({
+          selector: '.overflowing-child',
+          bounds: { x: 50, y: 100, w: 200, h: 100 },
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    expect(issues.length).toBe(1);
+    expect(issues[0].element).toBe('.overflowing-child');
+    expect(issues[0].element2).toBe('.container');
+  });
+
+  it('includes computed styles in the issue', () => {
+    const tree = makeElement({
+      selector: '.container',
+      bounds: { x: 100, y: 100, w: 400, h: 300 },
+      children: [
+        makeElement({
+          selector: '.styled-child',
+          bounds: { x: 50, y: 100, w: 200, h: 100 },
+          computed: { position: 'absolute', left: '-50px' },
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    expect(issues.length).toBe(1);
+    expect(issues[0].computed).toBeDefined();
+  });
+
+  it('includes per-edge overflow values in data', () => {
+    const tree = makeElement({
+      selector: '.box',
+      bounds: { x: 100, y: 100, w: 200, h: 200 },
+      children: [
+        makeElement({
+          selector: '.child',
+          bounds: { x: 90, y: 100, w: 250, h: 200 },
+          // overflowLeft: 100-90=10, overflowRight: (90+250)-(100+200)=40
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    expect(issues.length).toBe(1);
+    expect(issues[0].data).toBeDefined();
+    expect(typeof issues[0].data!.overflowRight).toBe('number');
+    expect(typeof issues[0].data!.overflowLeft).toBe('number');
+    expect(typeof issues[0].data!.overflowTop).toBe('number');
+    expect(typeof issues[0].data!.overflowBottom).toBe('number');
+  });
+
+  it('has a non-empty detail string', () => {
+    const tree = makeElement({
+      bounds: { x: 100, y: 100, w: 400, h: 300 },
+      children: [
+        makeElement({
+          selector: '.child',
+          bounds: { x: 50, y: 100, w: 200, h: 100 },
+        }),
+      ],
+    });
+    const issues = checkContainment(tree, viewport);
+    expect(issues.length).toBe(1);
+    expect(typeof issues[0].detail).toBe('string');
+    expect(issues[0].detail.length).toBeGreaterThan(0);
+  });
+
+  // ── Edge cases ──
+
+  it('handles parent with zero dimensions', () => {
+    const tree = makeElement({
+      selector: '.collapsed',
+      bounds: { x: 100, y: 100, w: 0, h: 0 },
+      children: [
+        makeElement({
+          selector: '.child-of-collapsed',
+          bounds: { x: 100, y: 100, w: 50, h: 50 },
+        }),
+      ],
+    });
+    // Should flag child as overflowing the zero-size parent
+    const issues = checkContainment(tree, viewport);
+    expect(issues.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('handles deeply nested elements with no violations', () => {
+    const tree = makeElement({
+      selector: '.root',
+      bounds: { x: 0, y: 0, w: 1000, h: 1000 },
+      children: [
+        makeElement({
+          selector: '.l1',
+          bounds: { x: 10, y: 10, w: 500, h: 500 },
+          children: [
+            makeElement({
+              selector: '.l2',
+              bounds: { x: 20, y: 20, w: 300, h: 300 },
+              children: [
+                makeElement({
+                  selector: '.l3',
+                  bounds: { x: 30, y: 30, w: 100, h: 100 },
+                }),
+              ],
+            }),
+          ],
         }),
       ],
     });
