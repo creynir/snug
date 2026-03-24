@@ -618,4 +618,202 @@ describe('checkSiblingOverlap', () => {
       expect(issues).toEqual([]);
     });
   });
+
+  // ── Fix 1b: Skip inline element overlap ──
+
+  describe('inline element skip (Fix 1b)', () => {
+    it('does not flag overlap between two display:inline siblings', () => {
+      const tree = makeElement({
+        selector: '.code-block',
+        children: [
+          makeElement({
+            selector: '.token-key',
+            tag: 'span',
+            bounds: { x: 0, y: 0, w: 60, h: 20 },
+            computed: { display: 'inline' },
+          }),
+          makeElement({
+            selector: '.token-punct',
+            tag: 'span',
+            bounds: { x: 50, y: 0, w: 30, h: 20 },
+            computed: { display: 'inline' },
+            // 10px overlap with .token-key — normal inline text flow
+          }),
+        ],
+      });
+      const issues = checkSiblingOverlap(tree, viewport);
+      const inlineIssues = issues.filter(
+        i =>
+          (i.element === '.token-key' && i.element2 === '.token-punct') ||
+          (i.element === '.token-punct' && i.element2 === '.token-key'),
+      );
+      expect(inlineIssues).toEqual([]);
+    });
+
+    it('does not flag overlap between two display:inline-block siblings', () => {
+      const tree = makeElement({
+        selector: '.tag-list',
+        children: [
+          makeElement({
+            selector: '.tag-a',
+            tag: 'span',
+            bounds: { x: 0, y: 0, w: 80, h: 24 },
+            computed: { display: 'inline-block' },
+          }),
+          makeElement({
+            selector: '.tag-b',
+            tag: 'span',
+            bounds: { x: 70, y: 0, w: 80, h: 24 },
+            computed: { display: 'inline-block' },
+            // 10px overlap — normal for inline-block wrapping
+          }),
+        ],
+      });
+      const issues = checkSiblingOverlap(tree, viewport);
+      const inlineIssues = issues.filter(
+        i =>
+          (i.element === '.tag-a' && i.element2 === '.tag-b') ||
+          (i.element === '.tag-b' && i.element2 === '.tag-a'),
+      );
+      expect(inlineIssues).toEqual([]);
+    });
+
+    it('still flags overlap between inline and block sibling (mixed)', () => {
+      const tree = makeElement({
+        selector: '.mixed-container',
+        children: [
+          makeElement({
+            selector: '.inline-el',
+            tag: 'span',
+            bounds: { x: 0, y: 0, w: 200, h: 200 },
+            computed: { display: 'inline' },
+          }),
+          makeElement({
+            selector: '.block-el',
+            tag: 'div',
+            bounds: { x: 50, y: 50, w: 200, h: 200 },
+            computed: { display: 'block' },
+            // Significant overlap — one inline, one block => should still flag
+          }),
+        ],
+      });
+      const issues = checkSiblingOverlap(tree, viewport);
+      expect(issues.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('still flags overlap between two block siblings (unchanged behavior)', () => {
+      const tree = makeElement({
+        selector: '.parent',
+        children: [
+          makeElement({
+            selector: '.block-a',
+            bounds: { x: 0, y: 0, w: 200, h: 200 },
+            computed: { display: 'block' },
+          }),
+          makeElement({
+            selector: '.block-b',
+            bounds: { x: 50, y: 50, w: 200, h: 200 },
+            computed: { display: 'block' },
+          }),
+        ],
+      });
+      const issues = checkSiblingOverlap(tree, viewport);
+      expect(issues.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  // ── Fix 2b: Stacking layer context ──
+
+  describe('stacking layer context (Fix 2b)', () => {
+    it('reports warning when both siblings are position:fixed and cover >80% viewport', () => {
+      // Two full-viewport fixed elements: canvas bg + modal backdrop
+      const tree = makeElement({
+        selector: '.app',
+        children: [
+          makeElement({
+            selector: '.canvas-bg',
+            bounds: { x: 0, y: 0, w: 1280, h: 800 },
+            computed: { position: 'fixed', zIndex: '1' },
+          }),
+          makeElement({
+            selector: '.modal-backdrop',
+            bounds: { x: 0, y: 0, w: 1280, h: 800 },
+            computed: { position: 'fixed', zIndex: '100' },
+          }),
+        ],
+      });
+      const issues = checkSiblingOverlap(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].severity).toBe('warning');
+    });
+
+    it('includes context.stackingLayers in the issue', () => {
+      const tree = makeElement({
+        selector: '.app',
+        children: [
+          makeElement({
+            selector: '.bg-layer',
+            bounds: { x: 0, y: 0, w: 1280, h: 800 },
+            computed: { position: 'fixed', zIndex: '1' },
+          }),
+          makeElement({
+            selector: '.overlay-layer',
+            bounds: { x: 0, y: 0, w: 1280, h: 800 },
+            computed: { position: 'fixed', zIndex: '50' },
+          }),
+        ],
+      });
+      const issues = checkSiblingOverlap(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].context).toBeDefined();
+      expect(issues[0].context?.stackingLayers).toBe('true');
+    });
+
+    it('still reports error when only ONE sibling is position:fixed', () => {
+      const tree = makeElement({
+        selector: '.app',
+        children: [
+          makeElement({
+            selector: '.fixed-bg',
+            bounds: { x: 0, y: 0, w: 1280, h: 800 },
+            computed: { position: 'fixed', zIndex: '1' },
+          }),
+          makeElement({
+            selector: '.absolute-panel',
+            bounds: { x: 0, y: 0, w: 1280, h: 800 },
+            computed: { position: 'absolute', zIndex: '1' },
+          }),
+        ],
+      });
+      const issues = checkSiblingOverlap(tree, viewport);
+      expect(issues.length).toBe(1);
+      // Same z-index, 100% overlap => error by existing logic
+      // Only one is fixed, so NOT stacking layers
+      expect(issues[0].context?.stackingLayers).toBeUndefined();
+    });
+
+    it('still reports error for two position:fixed elements that are small (not full-viewport)', () => {
+      const tree = makeElement({
+        selector: '.app',
+        children: [
+          makeElement({
+            selector: '.small-fixed-a',
+            bounds: { x: 10, y: 10, w: 100, h: 100 },
+            computed: { position: 'fixed', zIndex: '1' },
+          }),
+          makeElement({
+            selector: '.small-fixed-b',
+            bounds: { x: 50, y: 50, w: 100, h: 100 },
+            computed: { position: 'fixed', zIndex: '1' },
+          }),
+        ],
+      });
+      const issues = checkSiblingOverlap(tree, viewport);
+      expect(issues.length).toBe(1);
+      // Both fixed but small (100x100 = 10000, viewport = 1024000 => ~1%)
+      // NOT stacking layers, should remain error (same z-index, significant overlap)
+      expect(issues[0].severity).toBe('error');
+      expect(issues[0].context?.stackingLayers).toBeUndefined();
+    });
+  });
 });
