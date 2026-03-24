@@ -15,6 +15,11 @@ export async function getWarmEndpoint(): Promise<string | null> {
     const raw = await readFile(SOCK_FILE, 'utf8');
     const handle: WarmHandle = JSON.parse(raw);
 
+    if (typeof handle.wsEndpoint !== 'string') {
+      await cleanWarmHandle();
+      return null;
+    }
+
     // Check if the process is still alive
     try {
       process.kill(handle.pid, 0);

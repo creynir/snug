@@ -78,6 +78,19 @@ async function main(): Promise<void> {
 
   const args = argv as any;
 
+  if (args.depth < 0) {
+    console.error('Error: --depth must be non-negative');
+    process.exit(2);
+  }
+  if (args.width <= 0) {
+    console.error('Error: --width must be a positive number');
+    process.exit(2);
+  }
+  if (args.height <= 0) {
+    console.error('Error: --height must be a positive number');
+    process.exit(2);
+  }
+
   const options: CheckOptions = {
     file: args.file,
     stdin: args.stdin,
