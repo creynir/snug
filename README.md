@@ -11,13 +11,13 @@ AI coding agents can write CSS, but they can't *see* the result. Snug gives them
 ## Install
 
 ```bash
-npm install -g snug
+npm install -g snug-cli
 ```
 
 Or use it locally:
 
 ```bash
-npm install snug
+npm install snug-cli
 ```
 
 ## Quick start
@@ -84,7 +84,7 @@ The browser stays warm between runs (`--keep-alive`), so the first invocation ta
 ## Programmatic API
 
 ```typescript
-import { check } from 'snug';
+import { check } from 'snug-cli';
 
 const report = await check({ file: 'page.html', width: 1280, height: 800 });
 
@@ -95,7 +95,7 @@ console.log(report.elementCount); // number
 You can also run individual diagnostics or bring your own:
 
 ```typescript
-import { extractDOM, runDiagnostics, checkContainment, checkSiblingOverlap } from 'snug';
+import { extractDOM, runDiagnostics, checkContainment, checkSiblingOverlap } from 'snug-cli';
 
 // Run only the checks you care about
 const issues = runDiagnostics(tree, viewport, [checkContainment, checkSiblingOverlap]);
@@ -125,7 +125,7 @@ Snug tries not to waste your time with false positives:
 Issues and PRs welcome! This project is MIT licensed.
 
 ```bash
-git clone https://github.com/user/snug.git
+git clone https://github.com/creynir/snug.git
 cd snug
 npm install
 npm run build
