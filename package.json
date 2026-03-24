@@ -1,5 +1,5 @@
 {
-  "name": "snug",
+  "name": "snug-cli",
   "version": "0.1.0",
   "description": "Lightweight layout diagnostics for AI agents. Math instead of pixels.",
   "type": "module",
