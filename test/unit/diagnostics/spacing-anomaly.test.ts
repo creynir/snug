@@ -520,4 +520,82 @@ describe('checkSpacingAnomaly', () => {
       expect(issues).toEqual([]);
     });
   });
+
+  // ── Fix 1b: Skip inline elements from spacing checks ──
+
+  describe('inline element skip (Fix 1b)', () => {
+    it('skips spacing check when all children are display:inline', () => {
+      // 4 inline spans with irregular spacing — should NOT be flagged
+      // because inline elements flow in text runs, spacing is controlled by text layout
+      const tree = makeElement({
+        selector: '.text-block',
+        children: [
+          makeElement({
+            selector: '.word-a',
+            tag: 'span',
+            bounds: { x: 0, y: 0, w: 40, h: 20 },
+            computed: { display: 'inline' },
+          }),
+          makeElement({
+            selector: '.word-b',
+            tag: 'span',
+            bounds: { x: 56, y: 0, w: 40, h: 20 },
+            computed: { display: 'inline' },
+            // gap 16
+          }),
+          makeElement({
+            selector: '.word-c',
+            tag: 'span',
+            bounds: { x: 112, y: 0, w: 40, h: 20 },
+            computed: { display: 'inline' },
+            // gap 16
+          }),
+          makeElement({
+            selector: '.word-d',
+            tag: 'span',
+            bounds: { x: 220, y: 0, w: 40, h: 20 },
+            computed: { display: 'inline' },
+            // gap 68 — would be outlier if checked, but all children are inline
+          }),
+        ],
+      });
+      const issues = checkSpacingAnomaly(tree, viewport);
+      expect(issues).toEqual([]);
+    });
+
+    it('still checks spacing when children are display:block/flex/grid', () => {
+      // Block children with irregular spacing — SHOULD be flagged (unchanged behavior)
+      const tree = makeElement({
+        selector: '.list',
+        children: [
+          makeElement({
+            selector: '.item-a',
+            bounds: { x: 0, y: 0, w: 300, h: 50 },
+            computed: { display: 'block' },
+          }),
+          makeElement({
+            selector: '.item-b',
+            bounds: { x: 0, y: 66, w: 300, h: 50 },
+            computed: { display: 'block' },
+            // gap 16
+          }),
+          makeElement({
+            selector: '.item-c',
+            bounds: { x: 0, y: 132, w: 300, h: 50 },
+            computed: { display: 'block' },
+            // gap 16
+          }),
+          makeElement({
+            selector: '.item-outlier',
+            bounds: { x: 0, y: 250, w: 300, h: 50 },
+            computed: { display: 'block' },
+            // gap 68 — outlier
+          }),
+        ],
+      });
+      const issues = checkSpacingAnomaly(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].element).toBe('.item-outlier');
+    });
+  });
 });

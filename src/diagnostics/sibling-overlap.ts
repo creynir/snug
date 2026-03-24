@@ -21,11 +21,13 @@ import type { ExtractedElement, Issue, IssueSeverity, Viewport } from '../types.
  */
 export function checkSiblingOverlap(tree: ExtractedElement, viewport: Viewport): Issue[] {
   const issues: Issue[] = [];
-  walk(tree, issues);
+  walk(tree, issues, viewport);
   return issues;
 }
 
-function walk(parent: ExtractedElement, issues: Issue[]): void {
+const INLINE_DISPLAYS = new Set(['inline', 'inline-block', 'inline-flex', 'inline-grid']);
+
+function walk(parent: ExtractedElement, issues: Issue[], viewport: Viewport): void {
   // Skip recursion into SVG subtrees — SVG children overlap by design
   if (parent.tag === 'svg') return;
 
@@ -35,6 +37,11 @@ function walk(parent: ExtractedElement, issues: Issue[]): void {
     for (let j = i + 1; j < siblings.length; j++) {
       const a = siblings[i];
       const b = siblings[j];
+
+      // Skip overlap check if BOTH elements are inline
+      const aInline = a.computed?.display !== undefined && INLINE_DISPLAYS.has(a.computed.display);
+      const bInline = b.computed?.display !== undefined && INLINE_DISPLAYS.has(b.computed.display);
+      if (aInline && bInline) continue;
 
       const overlapX = Math.max(
         0,
@@ -63,9 +70,15 @@ function walk(parent: ExtractedElement, issues: Issue[]): void {
       const sameZIndex = zA === zB;
 
       const overlapPercent = overlapArea / smallerArea;
-      const severity = determineSeverity(overlapPercent, sameZIndex);
+      let severity = determineSeverity(overlapPercent, sameZIndex);
 
-      issues.push({
+      // Check for stacking layers
+      const bothStackingLayers = isStackingLayer(a, viewport) && isStackingLayer(b, viewport);
+      if (bothStackingLayers) {
+        severity = 'warning';
+      }
+
+      const issue: Issue = {
         type: 'sibling-overlap',
         severity,
         element: a.selector,
@@ -76,12 +89,18 @@ function walk(parent: ExtractedElement, issues: Issue[]): void {
           [b.selector]: b.computed ?? {},
         },
         data: { overlapX, overlapY, overlapArea, sameZIndex },
-      });
+      };
+
+      if (bothStackingLayers) {
+        issue.context = { stackingLayers: 'true' };
+      }
+
+      issues.push(issue);
     }
   }
 
   for (const child of parent.children) {
-    walk(child, issues);
+    walk(child, issues, viewport);
   }
 }
 
@@ -100,4 +119,11 @@ export function parseZIndex(value: string | undefined): number {
   if (value === undefined || value === 'auto') return 0;
   const parsed = parseInt(value, 10);
   return isNaN(parsed) ? 0 : parsed;
+}
+
+function isStackingLayer(el: ExtractedElement, viewport: Viewport): boolean {
+  if (el.computed?.position !== 'fixed') return false;
+  const elArea = el.bounds.w * el.bounds.h;
+  const vpArea = viewport.width * viewport.height;
+  return elArea >= vpArea * 0.8;
 }

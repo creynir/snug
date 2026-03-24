@@ -44,6 +44,14 @@ function extractionScript(opts: { depth: number; includeHidden: boolean }): Extr
     return base;
   }
 
+  // Properties where 'auto' is the default and should be filtered
+  const AUTO_IS_DEFAULT = new Set([
+    'width', 'height',
+    'top', 'right', 'bottom', 'left',
+    'marginTop', 'marginRight', 'marginBottom', 'marginLeft',
+    'zIndex',
+  ]);
+
   function getRelevantComputed(el: Element): Record<string, string> {
     const cs = getComputedStyle(el);
     const result: Record<string, string> = {};
@@ -51,9 +59,10 @@ function extractionScript(opts: { depth: number; includeHidden: boolean }): Extr
       const val = cs.getPropertyValue(
         prop.replace(/([A-Z])/g, '-$1').toLowerCase(),
       );
-      if (val && val !== 'none' && val !== 'normal' && val !== 'auto' && val !== '0px') {
-        result[prop] = val;
-      }
+      if (!val) continue;
+      if (val === 'none' || val === 'normal' || val === '0px') continue;
+      if (val === 'auto' && AUTO_IS_DEFAULT.has(prop)) continue;
+      result[prop] = val;
     }
     return result;
   }

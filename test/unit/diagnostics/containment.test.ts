@@ -524,4 +524,169 @@ describe('checkContainment', () => {
     const issues = checkContainment(tree, viewport);
     expect(issues).toEqual([]);
   });
+
+  // ── Fix 2a: Edge-mounted element context ──
+
+  describe('edge-mounted element context (Fix 2a)', () => {
+    it('reports warning (not error) for 10px-wide element overflowing parent by 5px (50% = edge-mounted)', () => {
+      // 10px port, overflowing left by 5px = 50% of its width => edge-mounted
+      const tree = makeElement({
+        selector: '.container',
+        bounds: { x: 100, y: 100, w: 400, h: 300 },
+        children: [
+          makeElement({
+            selector: '.port',
+            bounds: { x: 95, y: 200, w: 10, h: 10 },
+            computed: { position: 'absolute' },
+            // overflowLeft: 100 - 95 = 5px, child width = 10px, ratio = 50%
+          }),
+        ],
+      });
+      const issues = checkContainment(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].severity).toBe('warning');
+    });
+
+    it('reports warning with context.edgeMounted for edge-mounted element', () => {
+      const tree = makeElement({
+        selector: '.container',
+        bounds: { x: 100, y: 100, w: 400, h: 300 },
+        children: [
+          makeElement({
+            selector: '.badge',
+            bounds: { x: 95, y: 200, w: 10, h: 10 },
+            computed: { position: 'absolute' },
+          }),
+        ],
+      });
+      const issues = checkContainment(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].context).toBeDefined();
+      expect(issues[0].context?.edgeMounted).toBe('true');
+    });
+
+    it('still reports error for 200px-wide element overflowing by 100px (too large to be edge-mounted)', () => {
+      // Element is 200px wide — exceeds 30px max for edge-mounted
+      const tree = makeElement({
+        selector: '.container',
+        bounds: { x: 100, y: 100, w: 400, h: 300 },
+        children: [
+          makeElement({
+            selector: '.big-panel',
+            bounds: { x: 0, y: 150, w: 200, h: 100 },
+            computed: { position: 'absolute' },
+            // overflowLeft: 100 - 0 = 100px, child width = 200px, ratio = 50%
+            // BUT child is 200px wide, exceeds MAX_EDGE_ELEMENT_SIZE (30px)
+          }),
+        ],
+      });
+      const issues = checkContainment(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].severity).toBe('error');
+    });
+
+    it('still reports error for 10px element overflowing by 9px (90% — fully escaped, not centered)', () => {
+      // 10px element overflowing by 9px = 90% ratio — outside 30-70% range
+      const tree = makeElement({
+        selector: '.container',
+        bounds: { x: 100, y: 100, w: 400, h: 300 },
+        children: [
+          makeElement({
+            selector: '.escaped-port',
+            bounds: { x: 91, y: 200, w: 10, h: 10 },
+            computed: { position: 'absolute' },
+            // overflowLeft: 100 - 91 = 9px, child width = 10px, ratio = 90%
+            // 90% is outside the 30-70% range => NOT edge-mounted
+          }),
+        ],
+      });
+      const issues = checkContainment(tree, viewport);
+      expect(issues.length).toBe(1);
+      // 9px overflow < 20px threshold, so current code reports 'warning'
+      // But with edge-mounted detection, this should NOT have edgeMounted context
+      expect(issues[0].context?.edgeMounted).toBeUndefined();
+    });
+
+    it('detects edge-mounting on all four edges', () => {
+      // Test each edge: left, right, top, bottom
+      const makeEdgeTest = (selector: string, childBounds: { x: number; y: number; w: number; h: number }) => {
+        return makeElement({
+          selector: '.container',
+          bounds: { x: 100, y: 100, w: 400, h: 300 },
+          children: [
+            makeElement({
+              selector,
+              bounds: childBounds,
+              computed: { position: 'absolute' },
+            }),
+          ],
+        });
+      };
+
+      // Left edge: 10px port, 5px overflow left
+      const leftTree = makeEdgeTest('.port-left', { x: 95, y: 200, w: 10, h: 10 });
+      const leftIssues = checkContainment(leftTree, viewport);
+      expect(leftIssues.length).toBe(1);
+      expect(leftIssues[0].context?.edgeMounted).toBe('true');
+
+      // Right edge: 10px port, 5px overflow right (parent right = 500)
+      const rightTree = makeEdgeTest('.port-right', { x: 495, y: 200, w: 10, h: 10 });
+      const rightIssues = checkContainment(rightTree, viewport);
+      expect(rightIssues.length).toBe(1);
+      expect(rightIssues[0].context?.edgeMounted).toBe('true');
+
+      // Top edge: 10px port, 5px overflow top
+      const topTree = makeEdgeTest('.port-top', { x: 200, y: 95, w: 10, h: 10 });
+      const topIssues = checkContainment(topTree, viewport);
+      expect(topIssues.length).toBe(1);
+      expect(topIssues[0].context?.edgeMounted).toBe('true');
+
+      // Bottom edge: 10px port, 5px overflow bottom (parent bottom = 400)
+      const bottomTree = makeEdgeTest('.port-bottom', { x: 200, y: 395, w: 10, h: 10 });
+      const bottomIssues = checkContainment(bottomTree, viewport);
+      expect(bottomIssues.length).toBe(1);
+      expect(bottomIssues[0].context?.edgeMounted).toBe('true');
+    });
+
+    it('element must be <= 30px on overflow axis to qualify as edge-mounted', () => {
+      // 31px wide element — just over the threshold, should NOT be edge-mounted
+      const tree = makeElement({
+        selector: '.container',
+        bounds: { x: 100, y: 100, w: 400, h: 300 },
+        children: [
+          makeElement({
+            selector: '.too-big-handle',
+            bounds: { x: 85, y: 200, w: 31, h: 10 },
+            computed: { position: 'absolute' },
+            // overflowLeft: 100 - 85 = 15px, child width = 31px, ratio = ~48%
+            // Ratio is in range BUT element is 31px > 30px max
+          }),
+        ],
+      });
+      const issues = checkContainment(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].context?.edgeMounted).toBeUndefined();
+    });
+
+    it('edge-mounted on bottom edge works (small height element)', () => {
+      // 8px tall element overflowing bottom by 4px = 50% ratio
+      const tree = makeElement({
+        selector: '.container',
+        bounds: { x: 100, y: 100, w: 400, h: 300 },
+        children: [
+          makeElement({
+            selector: '.bottom-badge',
+            bounds: { x: 200, y: 396, w: 20, h: 8 },
+            computed: { position: 'absolute' },
+            // parent bottom = 400, child bottom = 396+8 = 404
+            // overflowBottom: 404 - 400 = 4px, child height = 8px, ratio = 50%
+          }),
+        ],
+      });
+      const issues = checkContainment(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].severity).toBe('warning');
+      expect(issues[0].context?.edgeMounted).toBe('true');
+    });
+  });
 });
