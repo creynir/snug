@@ -58,7 +58,8 @@ export type IssueType =
   | 'sibling-overlap'
   | 'truncation'
   | 'spacing-anomaly'
-  | 'aspect-ratio';
+  | 'aspect-ratio'
+  | 'viewport-fit';
 
 export interface Issue {
   type: IssueType;
@@ -73,6 +74,8 @@ export interface Issue {
   computed?: Record<string, string | Record<string, string>>;
   /** Additional numeric/boolean data for the agent */
   data?: Record<string, number | boolean>;
+  /** Triage context for the agent */
+  context?: Record<string, string>;
 }
 
 /** Signature for all diagnostic functions — pure functions over geometry data */

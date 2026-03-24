@@ -5,6 +5,7 @@ import { checkSiblingOverlap } from './sibling-overlap.js';
 import { checkTruncation } from './truncation.js';
 import { checkSpacingAnomaly } from './spacing-anomaly.js';
 import { checkAspectRatio } from './aspect-ratio.js';
+import { checkViewportFit } from './viewport-fit.js';
 
 /** Default diagnostic suite -- all Phase 1 checks. */
 const DEFAULT_DIAGNOSTICS: DiagnosticFn[] = [
@@ -14,6 +15,7 @@ const DEFAULT_DIAGNOSTICS: DiagnosticFn[] = [
   checkTruncation,
   checkSpacingAnomaly,
   checkAspectRatio,
+  checkViewportFit,
 ];
 
 /**

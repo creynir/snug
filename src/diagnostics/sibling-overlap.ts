@@ -26,6 +26,9 @@ export function checkSiblingOverlap(tree: ExtractedElement, viewport: Viewport):
 }
 
 function walk(parent: ExtractedElement, issues: Issue[]): void {
+  // Skip recursion into SVG subtrees — SVG children overlap by design
+  if (parent.tag === 'svg') return;
+
   const siblings = parent.children;
 
   for (let i = 0; i < siblings.length; i++) {
