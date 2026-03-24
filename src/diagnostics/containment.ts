@@ -59,14 +59,20 @@ function walk(parent: ExtractedElement, issues: Issue[]): void {
 
     const maxOverflow = Math.max(overflowLeft, overflowTop, overflowRight, overflowBottom);
     if (maxOverflow > 0) {
-      const severity: IssueSeverity = maxOverflow > 20 ? 'error' : 'warning';
+      let severity: IssueSeverity = maxOverflow > 20 ? 'error' : 'warning';
       const sides: string[] = [];
       if (overflowLeft > 0) sides.push(`left(${overflowLeft}px)`);
       if (overflowTop > 0) sides.push(`top(${overflowTop}px)`);
       if (overflowRight > 0) sides.push(`right(${overflowRight}px)`);
       if (overflowBottom > 0) sides.push(`bottom(${overflowBottom}px)`);
 
-      issues.push({
+      const edgeMounted = isEdgeMounted(child, overflowLeft, overflowRight, overflowTop, overflowBottom);
+
+      if (edgeMounted) {
+        severity = 'warning';
+      }
+
+      const issue: Issue = {
         type: 'containment',
         severity,
         element: child.selector,
@@ -74,10 +80,44 @@ function walk(parent: ExtractedElement, issues: Issue[]): void {
         detail: `Exceeds parent bounds on ${sides.join(', ')}`,
         computed: child.computed,
         data: { overflowRight, overflowBottom, overflowLeft, overflowTop },
-      });
+      };
+
+      if (edgeMounted) {
+        issue.context = { edgeMounted: 'true' };
+      }
+
+      issues.push(issue);
     }
 
     // Recurse into child
     walk(child, issues);
   }
+}
+
+const MAX_EDGE_ELEMENT_SIZE = 30;
+
+function isEdgeMounted(
+  child: ExtractedElement,
+  overflowLeft: number,
+  overflowRight: number,
+  overflowTop: number,
+  overflowBottom: number,
+): boolean {
+  if (overflowLeft > 0 && child.bounds.w <= MAX_EDGE_ELEMENT_SIZE) {
+    const ratio = overflowLeft / child.bounds.w;
+    if (ratio >= 0.3 && ratio <= 0.7) return true;
+  }
+  if (overflowRight > 0 && child.bounds.w <= MAX_EDGE_ELEMENT_SIZE) {
+    const ratio = overflowRight / child.bounds.w;
+    if (ratio >= 0.3 && ratio <= 0.7) return true;
+  }
+  if (overflowTop > 0 && child.bounds.h <= MAX_EDGE_ELEMENT_SIZE) {
+    const ratio = overflowTop / child.bounds.h;
+    if (ratio >= 0.3 && ratio <= 0.7) return true;
+  }
+  if (overflowBottom > 0 && child.bounds.h <= MAX_EDGE_ELEMENT_SIZE) {
+    const ratio = overflowBottom / child.bounds.h;
+    if (ratio >= 0.3 && ratio <= 0.7) return true;
+  }
+  return false;
 }

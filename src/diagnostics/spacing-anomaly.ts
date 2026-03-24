@@ -21,13 +21,20 @@ export function checkSpacingAnomaly(tree: ExtractedElement, viewport: Viewport):
   return issues;
 }
 
+const INLINE_DISPLAYS = new Set(['inline', 'inline-block', 'inline-flex', 'inline-grid']);
+
 function walk(el: ExtractedElement, issues: Issue[]): void {
   // Skip recursion into SVG subtrees — SVG children have irregular spacing by design
   if (el.tag === 'svg') return;
 
   const siblings = el.children;
 
-  if (siblings.length >= 3) {
+  // Skip spacing check when all children are inline (text flow controls spacing)
+  const allInline = siblings.length > 0 && siblings.every(
+    c => c.computed?.display !== undefined && INLINE_DISPLAYS.has(c.computed.display),
+  );
+
+  if (siblings.length >= 3 && !allInline) {
     const axis = detectAxis(siblings);
 
     const gaps: { gap: number; between: [ExtractedElement, ExtractedElement] }[] = [];
