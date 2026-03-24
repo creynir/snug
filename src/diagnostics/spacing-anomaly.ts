@@ -24,7 +24,7 @@ export function checkSpacingAnomaly(tree: ExtractedElement, viewport: Viewport):
 function walk(el: ExtractedElement, issues: Issue[]): void {
   const siblings = el.children;
 
-  if (siblings.length >= 3) {
+  if (siblings.length >= 4) {
     const axis = detectAxis(siblings);
 
     const gaps: { gap: number; between: [ExtractedElement, ExtractedElement] }[] = [];
