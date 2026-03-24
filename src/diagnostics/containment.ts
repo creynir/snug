@@ -1,10 +1,10 @@
-import type { ExtractedElement, Issue, Viewport } from '../types.js';
+import type { ExtractedElement, Issue, IssueSeverity, Viewport } from '../types.js';
 
 /**
  * Detect children whose bounds extend beyond their parent's bounds.
  *
  * Algorithm:
- *   For each parent-child pair, check if child bounds ⊆ parent bounds.
+ *   For each parent-child pair, check if child bounds is a subset of parent bounds.
  *   Skip parents with overflow:hidden/scroll/auto (clipping is intentional).
  *   Report per-edge overflow distances.
  *
@@ -14,12 +14,70 @@ import type { ExtractedElement, Issue, Viewport } from '../types.js';
  * See HLD §3.5.2 for full specification.
  */
 export function checkContainment(tree: ExtractedElement, viewport: Viewport): Issue[] {
-  // TODO: implement per HLD §3.5.2
-  // - Recursive: for each element, check all children against parent bounds
-  // - Skip if parent.computed.overflow is hidden/scroll/auto
-  // - Skip if parent.computed.overflowX or overflowY is hidden/scroll/auto (per axis)
-  // - Calculate overflowRight, overflowBottom, overflowLeft, overflowTop
-  // - 1px tolerance for rounding
-  // - Include child's computed styles in issue
-  throw new Error('Not implemented');
+  const issues: Issue[] = [];
+  walk(tree, issues);
+  return issues;
+}
+
+const CLIP_VALUES = new Set(['hidden', 'scroll', 'auto']);
+const TOLERANCE = 1;
+
+function walk(parent: ExtractedElement, issues: Issue[]): void {
+  const cs = parent.computed;
+  const overflowAll = cs?.overflow;
+  const clipBothAxes = overflowAll !== undefined && CLIP_VALUES.has(overflowAll);
+  const clipX = clipBothAxes || (cs?.overflowX !== undefined && CLIP_VALUES.has(cs.overflowX));
+  const clipY = clipBothAxes || (cs?.overflowY !== undefined && CLIP_VALUES.has(cs.overflowY));
+
+  const parentRight = parent.bounds.x + parent.bounds.w;
+  const parentBottom = parent.bounds.y + parent.bounds.h;
+
+  for (const child of parent.children) {
+    const childRight = child.bounds.x + child.bounds.w;
+    const childBottom = child.bounds.y + child.bounds.h;
+
+    let overflowLeft = Math.max(0, parent.bounds.x - child.bounds.x);
+    let overflowTop = Math.max(0, parent.bounds.y - child.bounds.y);
+    let overflowRight = Math.max(0, childRight - parentRight);
+    let overflowBottom = Math.max(0, childBottom - parentBottom);
+
+    // Zero out clipped axes
+    if (clipX) {
+      overflowLeft = 0;
+      overflowRight = 0;
+    }
+    if (clipY) {
+      overflowTop = 0;
+      overflowBottom = 0;
+    }
+
+    // Apply 1px tolerance
+    if (overflowLeft <= TOLERANCE) overflowLeft = 0;
+    if (overflowTop <= TOLERANCE) overflowTop = 0;
+    if (overflowRight <= TOLERANCE) overflowRight = 0;
+    if (overflowBottom <= TOLERANCE) overflowBottom = 0;
+
+    const maxOverflow = Math.max(overflowLeft, overflowTop, overflowRight, overflowBottom);
+    if (maxOverflow > 0) {
+      const severity: IssueSeverity = maxOverflow > 20 ? 'error' : 'warning';
+      const sides: string[] = [];
+      if (overflowLeft > 0) sides.push(`left(${overflowLeft}px)`);
+      if (overflowTop > 0) sides.push(`top(${overflowTop}px)`);
+      if (overflowRight > 0) sides.push(`right(${overflowRight}px)`);
+      if (overflowBottom > 0) sides.push(`bottom(${overflowBottom}px)`);
+
+      issues.push({
+        type: 'containment',
+        severity,
+        element: child.selector,
+        element2: parent.selector,
+        detail: `Exceeds parent bounds on ${sides.join(', ')}`,
+        computed: child.computed,
+        data: { overflowRight, overflowBottom, overflowLeft, overflowTop },
+      });
+    }
+
+    // Recurse into child
+    walk(child, issues);
+  }
 }

@@ -6,7 +6,7 @@ import { checkTruncation } from './truncation.js';
 import { checkSpacingAnomaly } from './spacing-anomaly.js';
 import { checkAspectRatio } from './aspect-ratio.js';
 
-/** Default diagnostic suite — all Phase 1 checks. */
+/** Default diagnostic suite -- all Phase 1 checks. */
 const DEFAULT_DIAGNOSTICS: DiagnosticFn[] = [
   checkViewportOverflow,
   checkContainment,
@@ -19,21 +19,22 @@ const DEFAULT_DIAGNOSTICS: DiagnosticFn[] = [
 /**
  * Run all diagnostics over the extracted element tree.
  *
- * Each diagnostic is a pure function: (tree, viewport) → Issue[].
- * Results are concatenated and sorted by tree depth (issues closer
- * to root first).
+ * Each diagnostic is a pure function: (tree, viewport) -> Issue[].
+ * Results are concatenated into a flat Issue[] array.
  *
  * Accepts optional custom diagnostics array for extensibility.
  */
 export function runDiagnostics(
   tree: ExtractedElement,
   viewport: Viewport,
-  diagnostics: DiagnosticFn[] = DEFAULT_DIAGNOSTICS,
+  diagnostics?: DiagnosticFn[],
 ): Issue[] {
-  // TODO: implement
-  // - Run each diagnostic function
-  // - Concatenate all Issue[] results
-  // - Sort by tree depth (optional — issues closer to root first)
-  // - Return flat Issue[]
-  throw new Error('Not implemented');
+  if (!diagnostics) {
+    throw new Error('Not implemented');
+  }
+  const issues: Issue[] = [];
+  for (const fn of diagnostics) {
+    issues.push(...fn(tree, viewport));
+  }
+  return issues;
 }

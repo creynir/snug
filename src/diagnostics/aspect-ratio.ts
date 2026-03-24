@@ -1,4 +1,4 @@
-import type { ExtractedElement, Issue, Viewport } from '../types.js';
+import type { ExtractedElement, Issue, IssueSeverity, Viewport } from '../types.js';
 
 /**
  * Detect aspect ratio distortion in images/video elements.
@@ -13,15 +13,36 @@ import type { ExtractedElement, Issue, Viewport } from '../types.js';
  * See HLD §3.5.6 for full specification.
  */
 export function checkAspectRatio(tree: ExtractedElement, viewport: Viewport): Issue[] {
-  // TODO: implement per HLD §3.5.6
-  // - Recurse through all elements
-  // - Check element.natural exists (and dimensions > 0)
-  // - Calculate naturalRatio = natural.width / natural.height
-  // - Calculate renderedRatio = bounds.w / bounds.h
-  // - Guard against zero bounds.h or natural.height
-  // - distortion = abs(naturalRatio - renderedRatio) / naturalRatio
-  // - > 15% → error, > 5% → warning
-  // - Include objectFit, width, height in computed
-  // - Include naturalRatio, renderedRatio, distortionPercent in data
-  throw new Error('Not implemented');
+  const issues: Issue[] = [];
+  walk(tree, issues);
+  return issues;
+}
+
+function walk(el: ExtractedElement, issues: Issue[]): void {
+  if (el.natural) {
+    // Guard against zero dimensions
+    if (el.natural.height > 0 && el.natural.width > 0 && el.bounds.h > 0 && el.bounds.w > 0) {
+      const naturalRatio = el.natural.width / el.natural.height;
+      const renderedRatio = el.bounds.w / el.bounds.h;
+      const distortion = Math.abs(naturalRatio - renderedRatio) / naturalRatio;
+      const distortionPercent = Math.round(distortion * 100);
+
+      if (distortionPercent > 5) {
+        const severity: IssueSeverity = distortionPercent > 15 ? 'error' : 'warning';
+
+        issues.push({
+          type: 'aspect-ratio',
+          severity,
+          element: el.selector,
+          detail: `Aspect ratio distorted. Natural: ${el.natural.width}x${el.natural.height} (${naturalRatio.toFixed(2)}), rendered: ${el.bounds.w}x${el.bounds.h} (${renderedRatio.toFixed(2)}). Distortion: ${distortionPercent}%`,
+          computed: el.computed,
+          data: { naturalRatio, renderedRatio, distortionPercent },
+        });
+      }
+    }
+  }
+
+  for (const child of el.children) {
+    walk(child, issues);
+  }
 }
