@@ -525,6 +525,106 @@ describe('checkContainment', () => {
     expect(issues).toEqual([]);
   });
 
+  // ── A1: Skip position:fixed children ──
+
+  describe('skip position:fixed children (A1)', () => {
+    it('does not flag position:fixed child exceeding body bounds', () => {
+      const tree = makeElement({
+        selector: 'body',
+        tag: 'body',
+        bounds: { x: 0, y: 0, w: 1280, h: 800 },
+        children: [
+          makeElement({
+            selector: '.modal',
+            bounds: { x: -50, y: 0, w: 1400, h: 900 },
+            computed: { position: 'fixed' },
+            // Overflows left, right, and bottom — but fixed elements are positioned
+            // relative to viewport, not parent. Should not be flagged.
+          }),
+        ],
+      });
+      const issues = checkContainment(tree, viewport);
+      expect(issues.filter(i => i.element === '.modal')).toEqual([]);
+    });
+
+    it('still flags position:absolute child exceeding parent bounds', () => {
+      const tree = makeElement({
+        selector: '.container',
+        bounds: { x: 100, y: 100, w: 400, h: 300 },
+        children: [
+          makeElement({
+            selector: '.abs-child',
+            bounds: { x: 50, y: 100, w: 200, h: 100 },
+            computed: { position: 'absolute' },
+            // overflowLeft: 100 - 50 = 50 => should be flagged
+          }),
+        ],
+      });
+      const issues = checkContainment(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].element).toBe('.abs-child');
+    });
+
+    it('still flags position:relative child exceeding parent bounds', () => {
+      const tree = makeElement({
+        selector: '.container',
+        bounds: { x: 100, y: 100, w: 400, h: 300 },
+        children: [
+          makeElement({
+            selector: '.rel-child',
+            bounds: { x: 50, y: 100, w: 200, h: 100 },
+            computed: { position: 'relative' },
+            // overflowLeft: 100 - 50 = 50 => should be flagged
+          }),
+        ],
+      });
+      const issues = checkContainment(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].element).toBe('.rel-child');
+    });
+  });
+
+  // ── A2: Skip inline elements from containment checks ──
+
+  describe('skip inline elements (A2)', () => {
+    it('does not flag display:inline child exceeding parent bounds', () => {
+      const tree = makeElement({
+        selector: '.text-container',
+        bounds: { x: 100, y: 100, w: 400, h: 300 },
+        children: [
+          makeElement({
+            selector: '.inline-text',
+            tag: 'span',
+            bounds: { x: 50, y: 100, w: 500, h: 20 },
+            computed: { display: 'inline' },
+            // Overflows left by 50px and right by 50px — but inline elements
+            // have unreliable bounding boxes and should be skipped.
+          }),
+        ],
+      });
+      const issues = checkContainment(tree, viewport);
+      expect(issues.filter(i => i.element === '.inline-text')).toEqual([]);
+    });
+
+    it('still flags display:block child exceeding parent bounds', () => {
+      const tree = makeElement({
+        selector: '.container',
+        bounds: { x: 100, y: 100, w: 400, h: 300 },
+        children: [
+          makeElement({
+            selector: '.block-child',
+            bounds: { x: 50, y: 100, w: 500, h: 100 },
+            computed: { display: 'block' },
+            // overflowLeft: 100 - 50 = 50, overflowRight: (50+500) - (100+400) = 50
+          }),
+        ],
+      });
+      const issues = checkContainment(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].element).toBe('.block-child');
+    });
+  });
+
   // ── Fix 2a: Edge-mounted element context ──
 
   describe('edge-mounted element context (Fix 2a)', () => {

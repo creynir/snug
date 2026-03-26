@@ -278,6 +278,95 @@ describe('checkViewportOverflow', () => {
     expect(issues.find(i => i.element === '.card')!.data?.overflowX).toBe(25);
   });
 
+  // ── A4: SVG child skip ──
+
+  describe('SVG subtree skip (A4)', () => {
+    it('does not flag <rect> inside <svg> extending beyond viewport', () => {
+      const tree = makeElement({
+        selector: 'body',
+        bounds: { x: 0, y: 0, w: 1280, h: 800 },
+        children: [
+          makeElement({
+            selector: 'svg.chart',
+            tag: 'svg',
+            bounds: { x: 0, y: 0, w: 800, h: 400 },
+            children: [
+              makeElement({
+                selector: 'rect.bar',
+                tag: 'rect',
+                bounds: { x: 0, y: 0, w: 1500, h: 200 },
+                // Extends beyond viewport at 1280px — but it's inside an SVG,
+                // so its bounds are SVG coordinate space, not document layout.
+              }),
+            ],
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      const rectIssues = issues.filter(i => i.element === 'rect.bar');
+      expect(rectIssues).toEqual([]);
+    });
+
+    it('does not flag <path> inside <svg> extending beyond viewport', () => {
+      const tree = makeElement({
+        selector: 'body',
+        bounds: { x: 0, y: 0, w: 1280, h: 800 },
+        children: [
+          makeElement({
+            selector: 'svg.line-chart',
+            tag: 'svg',
+            bounds: { x: 0, y: 0, w: 600, h: 300 },
+            children: [
+              makeElement({
+                selector: 'path.line',
+                tag: 'path',
+                bounds: { x: -100, y: 0, w: 1600, h: 300 },
+                // Overflows both left and right — but inside SVG subtree
+              }),
+            ],
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      const pathIssues = issues.filter(i => i.element === 'path.line');
+      expect(pathIssues).toEqual([]);
+    });
+
+    it('still flags <div> extending beyond viewport (not SVG child)', () => {
+      const tree = makeElement({
+        selector: 'body',
+        bounds: { x: 0, y: 0, w: 1280, h: 800 },
+        children: [
+          makeElement({
+            selector: '.wide-div',
+            tag: 'div',
+            bounds: { x: 0, y: 0, w: 1500, h: 200 },
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      expect(issues.some(i => i.element === '.wide-div')).toBe(true);
+    });
+
+    it('still flags <svg> element itself extending beyond viewport', () => {
+      const tree = makeElement({
+        selector: 'body',
+        bounds: { x: 0, y: 0, w: 1280, h: 800 },
+        children: [
+          makeElement({
+            selector: 'svg.oversized',
+            tag: 'svg',
+            bounds: { x: 0, y: 0, w: 1500, h: 400 },
+            // The SVG element itself overflows — this should be flagged.
+            // Only children inside SVG are skipped.
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      expect(issues.some(i => i.element === 'svg.oversized')).toBe(true);
+    });
+  });
+
   // ── Clipping-ancestor context (FOLLOWUP-001 Change 2) ──
 
   describe('clipping-ancestor context', () => {

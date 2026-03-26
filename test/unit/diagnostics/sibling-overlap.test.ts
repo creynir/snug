@@ -722,6 +722,109 @@ describe('checkSiblingOverlap', () => {
     });
   });
 
+  // ── A5: Compound form control overlap suppression ──
+
+  describe('compound form control overlap suppression (A5)', () => {
+    it('downgrades overlap between input and small absolute-positioned sibling to warning', () => {
+      const tree = makeElement({
+        selector: '.form-group',
+        children: [
+          makeElement({
+            selector: 'input.search',
+            tag: 'input',
+            bounds: { x: 0, y: 0, w: 300, h: 40 },
+            computed: { display: 'block' },
+          }),
+          makeElement({
+            selector: '.search-icon',
+            tag: 'div',
+            bounds: { x: 270, y: 8, w: 24, h: 24 },
+            computed: { position: 'absolute' },
+            // Small icon (24x24 <= 32px) overlapping the input — compound control pattern
+          }),
+        ],
+      });
+      const issues = checkSiblingOverlap(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].severity).toBe('warning');
+      expect(issues[0].context?.compoundControl).toBe('true');
+    });
+
+    it('downgrades overlap between select and small absolute-positioned SVG icon to warning', () => {
+      const tree = makeElement({
+        selector: '.dropdown-wrapper',
+        children: [
+          makeElement({
+            selector: 'select.dropdown',
+            tag: 'select',
+            bounds: { x: 0, y: 0, w: 200, h: 36 },
+            computed: { display: 'block' },
+          }),
+          makeElement({
+            selector: 'svg.chevron',
+            tag: 'svg',
+            bounds: { x: 176, y: 10, w: 16, h: 16 },
+            computed: { position: 'absolute' },
+            // 16x16 SVG chevron overlapping select — compound control
+          }),
+        ],
+      });
+      const issues = checkSiblingOverlap(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].severity).toBe('warning');
+      expect(issues[0].context?.compoundControl).toBe('true');
+    });
+
+    it('does not downgrade overlap between two regular divs', () => {
+      const tree = makeElement({
+        selector: '.container',
+        children: [
+          makeElement({
+            selector: '.panel-a',
+            tag: 'div',
+            bounds: { x: 0, y: 0, w: 200, h: 200 },
+            computed: { display: 'block' },
+          }),
+          makeElement({
+            selector: '.panel-b',
+            tag: 'div',
+            bounds: { x: 100, y: 50, w: 200, h: 200 },
+            computed: { position: 'absolute' },
+          }),
+        ],
+      });
+      const issues = checkSiblingOverlap(tree, viewport);
+      expect(issues.length).toBe(1);
+      // No compound control context — neither element is a form control
+      expect(issues[0].context?.compoundControl).toBeUndefined();
+    });
+
+    it('does not downgrade when the "icon" is larger than 32px', () => {
+      const tree = makeElement({
+        selector: '.form-group',
+        children: [
+          makeElement({
+            selector: 'input.text-input',
+            tag: 'input',
+            bounds: { x: 0, y: 0, w: 300, h: 40 },
+            computed: { display: 'block' },
+          }),
+          makeElement({
+            selector: '.big-overlay',
+            tag: 'div',
+            bounds: { x: 200, y: 0, w: 100, h: 40 },
+            computed: { position: 'absolute' },
+            // 100x40 — too large (both dimensions exceed 32px) to be a compound control icon
+          }),
+        ],
+      });
+      const issues = checkSiblingOverlap(tree, viewport);
+      expect(issues.length).toBe(1);
+      // Should NOT have compound control context — the "icon" is too large
+      expect(issues[0].context?.compoundControl).toBeUndefined();
+    });
+  });
+
   // ── Fix 2b: Stacking layer context ──
 
   describe('stacking layer context (Fix 2b)', () => {

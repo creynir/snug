@@ -443,6 +443,96 @@ describe('checkStacking — escalation (2c)', () => {
 });
 
 // ──────────────────────────────────────────
+// A6: Raise escalation threshold to 9999
+// ──────────────────────────────────────────
+
+describe('checkStacking — escalation threshold raised to 9999 (A6)', () => {
+  it('does not flag z-index: 500 (design system overlay layer)', () => {
+    const tree = makeElement({
+      selector: 'body',
+      tag: 'body',
+      children: [
+        makeElement({
+          selector: '.overlay',
+          computed: { zIndex: '500', position: 'relative' },
+        }),
+      ],
+    });
+    const issues = checkStacking(tree, viewport);
+    const esc = issues.filter(i => i.context?.check === 'escalation');
+    expect(esc).toEqual([]);
+  });
+
+  it('does not flag z-index: 999 (still within design system range)', () => {
+    const tree = makeElement({
+      selector: 'body',
+      tag: 'body',
+      children: [
+        makeElement({
+          selector: '.modal',
+          computed: { zIndex: '999', position: 'relative' },
+        }),
+      ],
+    });
+    const issues = checkStacking(tree, viewport);
+    const esc = issues.filter(i => i.context?.check === 'escalation');
+    expect(esc).toEqual([]);
+  });
+
+  it('does not flag z-index: 9999 (aggressive but sometimes deliberate)', () => {
+    const tree = makeElement({
+      selector: 'body',
+      tag: 'body',
+      children: [
+        makeElement({
+          selector: '.toast',
+          computed: { zIndex: '9999', position: 'relative' },
+        }),
+      ],
+    });
+    const issues = checkStacking(tree, viewport);
+    const esc = issues.filter(i => i.context?.check === 'escalation');
+    expect(esc).toEqual([]);
+  });
+
+  it('flags z-index: 10000', () => {
+    const tree = makeElement({
+      selector: 'body',
+      tag: 'body',
+      children: [
+        makeElement({
+          selector: '.extreme-overlay',
+          computed: { zIndex: '10000', position: 'relative' },
+        }),
+      ],
+    });
+    const issues = checkStacking(tree, viewport);
+    const esc = issues.filter(i => i.context?.check === 'escalation');
+    expect(esc.length).toBe(1);
+    expect(esc[0].severity).toBe('warning');
+    expect(esc[0].data?.zIndex).toBe(10000);
+  });
+
+  it('flags z-index: 99999', () => {
+    const tree = makeElement({
+      selector: 'body',
+      tag: 'body',
+      children: [
+        makeElement({
+          selector: '.absurd-z',
+          computed: { zIndex: '99999', position: 'relative' },
+        }),
+      ],
+    });
+    const issues = checkStacking(tree, viewport);
+    const esc = issues.filter(i => i.context?.check === 'escalation');
+    expect(esc.length).toBe(1);
+    expect(esc[0].severity).toBe('warning');
+    expect(esc[0].data?.zIndex).toBe(99999);
+  });
+});
+
+// ──────────────────────────────────────────
 // 2d. Fixed Broken
 // ──────────────────────────────────────────
 

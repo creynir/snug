@@ -446,6 +446,120 @@ describe('checkSpacingAnomaly', () => {
     expect(issues).toEqual([]);
   });
 
+  // ── A3: Skip absolute-positioned siblings ──
+
+  describe('skip absolute-positioned siblings (A3)', () => {
+    it('skips spacing check when all siblings are position:absolute', () => {
+      // Absolute-positioned elements are placed freely — spacing between them
+      // is not meaningful in the same way as flow-layout siblings.
+      const tree = makeElement({
+        selector: '.canvas',
+        children: [
+          makeElement({
+            selector: '.node-a',
+            bounds: { x: 50, y: 20, w: 100, h: 60 },
+            computed: { position: 'absolute' },
+          }),
+          makeElement({
+            selector: '.node-b',
+            bounds: { x: 200, y: 20, w: 100, h: 60 },
+            computed: { position: 'absolute' },
+            // gap 50
+          }),
+          makeElement({
+            selector: '.node-c',
+            bounds: { x: 350, y: 20, w: 100, h: 60 },
+            computed: { position: 'absolute' },
+            // gap 50
+          }),
+          makeElement({
+            selector: '.node-d',
+            bounds: { x: 600, y: 20, w: 100, h: 60 },
+            computed: { position: 'absolute' },
+            // gap 150 — would be outlier if checked, but all are absolute
+          }),
+        ],
+      });
+      const issues = checkSpacingAnomaly(tree, viewport);
+      expect(issues).toEqual([]);
+    });
+
+    it('still checks spacing when siblings are position:static/relative', () => {
+      const tree = makeElement({
+        selector: '.list',
+        children: [
+          makeElement({
+            selector: '.item-a',
+            bounds: { x: 0, y: 0, w: 300, h: 50 },
+            computed: { position: 'static' },
+          }),
+          makeElement({
+            selector: '.item-b',
+            bounds: { x: 0, y: 66, w: 300, h: 50 },
+            computed: { position: 'relative' },
+            // gap 16
+          }),
+          makeElement({
+            selector: '.item-c',
+            bounds: { x: 0, y: 132, w: 300, h: 50 },
+            computed: { position: 'static' },
+            // gap 16
+          }),
+          makeElement({
+            selector: '.item-outlier',
+            bounds: { x: 0, y: 250, w: 300, h: 50 },
+            computed: { position: 'static' },
+            // gap 68 — outlier
+          }),
+        ],
+      });
+      const issues = checkSpacingAnomaly(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].element).toBe('.item-outlier');
+    });
+
+    it('still checks spacing when mix of absolute and static (only checks static ones)', () => {
+      // When a mix of positioned and flow children exist, only flow children
+      // (static/relative) should be used for spacing checks.
+      const tree = makeElement({
+        selector: '.mixed-container',
+        children: [
+          makeElement({
+            selector: '.flow-a',
+            bounds: { x: 0, y: 0, w: 300, h: 50 },
+            computed: { position: 'static' },
+          }),
+          makeElement({
+            selector: '.abs-overlay',
+            bounds: { x: 100, y: 100, w: 50, h: 50 },
+            computed: { position: 'absolute' },
+          }),
+          makeElement({
+            selector: '.flow-b',
+            bounds: { x: 0, y: 66, w: 300, h: 50 },
+            computed: { position: 'static' },
+            // gap from flow-a: 16
+          }),
+          makeElement({
+            selector: '.flow-c',
+            bounds: { x: 0, y: 132, w: 300, h: 50 },
+            computed: { position: 'static' },
+            // gap from flow-b: 16
+          }),
+          makeElement({
+            selector: '.flow-outlier',
+            bounds: { x: 0, y: 250, w: 300, h: 50 },
+            computed: { position: 'static' },
+            // gap from flow-c: 68 — outlier among flow siblings
+          }),
+        ],
+      });
+      const issues = checkSpacingAnomaly(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].element).toBe('.flow-outlier');
+    });
+  });
+
   // ── SVG subtree skip (FOLLOWUP-001 Change 3) ──
 
   describe('SVG subtree skip', () => {
