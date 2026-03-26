@@ -62,7 +62,8 @@ export type IssueType =
   | 'spacing-anomaly'
   | 'aspect-ratio'
   | 'viewport-fit'
-  | 'content-duplicate';
+  | 'content-duplicate'
+  | 'stacking';
 
 export interface Issue {
   type: IssueType;

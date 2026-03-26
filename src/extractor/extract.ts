@@ -37,6 +37,15 @@ function extractionScript(opts: { depth: number; includeHidden: boolean }): Extr
     'gridTemplateColumns',
     'gridTemplateRows',
     'textOverflow',
+    'opacity',
+    'filter',
+    'isolation',
+    'willChange',
+    'mixBlendMode',
+    'perspective',
+    'backdropFilter',
+    'containerType',
+    'visibility',
   ];
 
   function buildSelector(el: Element): string {
@@ -72,6 +81,8 @@ function extractionScript(opts: { depth: number; includeHidden: boolean }): Extr
     'marginBottom',
     'marginLeft',
     'zIndex',
+    'willChange',
+    'perspective',
   ]);
 
   const SEMANTIC_ATTRS = ['src', 'href', 'role', 'alt', 'aria-label', 'type'];
@@ -117,6 +128,8 @@ function extractionScript(opts: { depth: number; includeHidden: boolean }): Extr
       if (!val) continue;
       if (val === 'none' || val === 'normal' || val === '0px') continue;
       if (val === 'auto' && AUTO_IS_DEFAULT.has(prop)) continue;
+      if (prop === 'opacity' && val === '1') continue;
+      if (prop === 'visibility' && val === 'visible') continue;
       result[prop] = val;
     }
     return result;
