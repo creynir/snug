@@ -16,6 +16,11 @@
   </style>
 </head>
 <body>
+  <!-- sr-only elements for accessibility (should be excluded from extraction) -->
+  <a href="#main" class="sr-only" style="position:absolute;clip:rect(0,0,0,0);width:1px;height:1px;overflow:hidden;">Skip to main content</a>
+  <span class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Screen reader only</span>
+  <div class="off-screen" style="position:absolute;left:-9999px;">Off screen content</div>
+
   <header>
     <div class="logo"></div>
   </header>
