@@ -6,6 +6,7 @@ import { checkTruncation } from './truncation.js';
 import { checkSpacingAnomaly } from './spacing-anomaly.js';
 import { checkAspectRatio } from './aspect-ratio.js';
 import { checkViewportFit } from './viewport-fit.js';
+import { checkContentDuplicate } from './content-duplicate.js';
 
 /** Default diagnostic suite -- all Phase 1 checks. */
 const DEFAULT_DIAGNOSTICS: DiagnosticFn[] = [
@@ -16,6 +17,7 @@ const DEFAULT_DIAGNOSTICS: DiagnosticFn[] = [
   checkSpacingAnomaly,
   checkAspectRatio,
   checkViewportFit,
+  checkContentDuplicate,
 ];
 
 /**

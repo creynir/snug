@@ -37,6 +37,8 @@ export interface ExtractedElement {
     width: number;
     height: number;
   };
+  /** Semantic attributes for content analysis (src, href, role, alt, aria-label) */
+  attributes?: Record<string, string>;
   /** Child elements */
   children: ExtractedElement[];
 }
@@ -59,7 +61,8 @@ export type IssueType =
   | 'truncation'
   | 'spacing-anomaly'
   | 'aspect-ratio'
-  | 'viewport-fit';
+  | 'viewport-fit'
+  | 'content-duplicate';
 
 export interface Issue {
   type: IssueType;

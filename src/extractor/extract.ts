@@ -74,6 +74,41 @@ function extractionScript(opts: { depth: number; includeHidden: boolean }): Extr
     'zIndex',
   ]);
 
+  const SEMANTIC_ATTRS = ['src', 'href', 'role', 'alt', 'aria-label', 'type'];
+
+  function getSemanticAttributes(el: Element): Record<string, string> | undefined {
+    const result: Record<string, string> = {};
+    for (const attr of SEMANTIC_ATTRS) {
+      const val = el.getAttribute(attr);
+      if (val) result[attr] = val;
+    }
+    // Implicit ARIA landmark roles from tag semantics
+    if (!result.role) {
+      const implicitRoles: Record<string, string> = {
+        nav: 'navigation',
+        header: 'banner',
+        main: 'main',
+        footer: 'contentinfo',
+        aside: 'complementary',
+      };
+      const implicit = implicitRoles[el.tagName.toLowerCase()];
+      if (implicit) result.role = implicit;
+    }
+    return Object.keys(result).length > 0 ? result : undefined;
+  }
+
+  function isSrOnly(el: Element): boolean {
+    const cs = getComputedStyle(el);
+    // Classic sr-only: position absolute, clip rect
+    if (cs.position === 'absolute' && cs.clip === 'rect(0px, 0px, 0px, 0px)') return true;
+    // 1x1px variant
+    if (cs.position === 'absolute' && cs.width === '1px' && cs.height === '1px') return true;
+    // Off-screen positioning
+    const rect = el.getBoundingClientRect();
+    if (rect.right < -1000 || rect.bottom < -1000) return true;
+    return false;
+  }
+
   function getRelevantComputed(el: Element): Record<string, string> {
     const cs = getComputedStyle(el);
     const result: Record<string, string> = {};
@@ -102,6 +137,7 @@ function extractionScript(opts: { depth: number; includeHidden: boolean }): Extr
     if (!opts.includeHidden) {
       const cs = getComputedStyle(el);
       if (cs.display === 'none') return null;
+      if (isSrOnly(el)) return null;
     }
 
     const bounds = {
@@ -130,6 +166,9 @@ function extractionScript(opts: { depth: number; includeHidden: boolean }): Extr
 
     // Computed styles
     node.computed = getRelevantComputed(el);
+
+    // Semantic attributes
+    node.attributes = getSemanticAttributes(el);
 
     // Scroll dimensions (for truncation detection)
     if (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight) {
