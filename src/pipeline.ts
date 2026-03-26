@@ -2,6 +2,7 @@ import type { BrowserAdapter, CheckOptions, SnugReport, Viewport } from './types
 import { PuppeteerAdapter } from './browser/puppeteer.js';
 import { extractDOM } from './extractor/extract.js';
 import { runDiagnostics } from './diagnostics/index.js';
+import { resolveSeverity } from './diagnostics/severity-resolver.js';
 import { formatReport } from './reporter/format.js';
 
 /**
@@ -54,11 +55,12 @@ export async function check(
       });
 
       const issues = runDiagnostics(tree, actualViewport);
+      const resolved = resolveSeverity(issues, tree, actualViewport);
 
       const report: SnugReport = {
         viewport: actualViewport,
         elementCount: countElements(tree),
-        issues,
+        issues: resolved,
         tree,
       };
 
