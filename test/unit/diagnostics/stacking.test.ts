@@ -373,14 +373,14 @@ describe('checkStacking — context-trap (2b)', () => {
 // ──────────────────────────────────────────
 
 describe('checkStacking — escalation (2c)', () => {
-  it('17. flags z-index: 999', () => {
+  it('17. flags z-index: 10000', () => {
     const tree = makeElement({
       selector: 'body',
       tag: 'body',
       children: [
         makeElement({
           selector: '.high-z',
-          computed: { zIndex: '999', position: 'relative' },
+          computed: { zIndex: '10000', position: 'relative' },
         }),
       ],
     });
@@ -389,24 +389,24 @@ describe('checkStacking — escalation (2c)', () => {
     expect(esc.length).toBe(1);
     expect(esc[0].severity).toBe('warning');
     expect(esc[0].type).toBe('stacking');
-    expect(esc[0].data?.zIndex).toBe(999);
+    expect(esc[0].data?.zIndex).toBe(10000);
   });
 
-  it('18. flags z-index: 9999', () => {
+  it('18. flags z-index: 99999', () => {
     const tree = makeElement({
       selector: 'body',
       tag: 'body',
       children: [
         makeElement({
           selector: '.extreme-z',
-          computed: { zIndex: '9999', position: 'relative' },
+          computed: { zIndex: '99999', position: 'relative' },
         }),
       ],
     });
     const issues = checkStacking(tree, viewport);
     const esc = issues.filter(i => i.context?.check === 'escalation');
     expect(esc.length).toBe(1);
-    expect(esc[0].data?.zIndex).toBe(9999);
+    expect(esc[0].data?.zIndex).toBe(99999);
   });
 
   it('19. does not flag z-index: 10', () => {
