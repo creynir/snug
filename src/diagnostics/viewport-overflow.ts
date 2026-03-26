@@ -18,7 +18,7 @@ import type { ExtractedElement, Issue, IssueSeverity, Viewport } from '../types.
  */
 export function checkViewportOverflow(tree: ExtractedElement, viewport: Viewport): Issue[] {
   const issues: Issue[] = [];
-  walk(tree, viewport, issues, undefined);
+  walk(tree, viewport, issues, undefined, false);
   return issues;
 }
 
@@ -46,10 +46,11 @@ function walk(
   viewport: Viewport,
   issues: Issue[],
   clippingAncestor: ExtractedElement | undefined,
+  insideSvg: boolean,
 ): void {
   const rightEdge = el.bounds.x + el.bounds.w;
 
-  if (rightEdge > viewport.width) {
+  if (!insideSvg && rightEdge > viewport.width) {
     const overflowX = rightEdge - viewport.width;
     if (clippingAncestor) {
       const clippedWithinViewport = ancestorContainsViewport(clippingAncestor, viewport);
@@ -75,7 +76,7 @@ function walk(
     }
   }
 
-  if (el.bounds.x < 0) {
+  if (!insideSvg && el.bounds.x < 0) {
     if (clippingAncestor) {
       const clippedWithinViewport = ancestorContainsViewport(clippingAncestor, viewport);
       const severity: IssueSeverity = clippedWithinViewport ? 'warning' : 'error';
@@ -102,8 +103,9 @@ function walk(
 
   // Determine the clipping ancestor for children
   const nextClipping = isClippingElement(el) ? el : clippingAncestor;
+  const nextInsideSvg = insideSvg || el.tag === 'svg';
 
   for (const child of el.children) {
-    walk(child, viewport, issues, nextClipping);
+    walk(child, viewport, issues, nextClipping, nextInsideSvg);
   }
 }

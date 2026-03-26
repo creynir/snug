@@ -20,6 +20,7 @@ export function checkContainment(tree: ExtractedElement, _viewport: Viewport): I
 }
 
 const CLIP_VALUES = new Set(['hidden', 'scroll', 'auto']);
+const INLINE_DISPLAYS = new Set(['inline', 'inline-block', 'inline-flex', 'inline-grid']);
 const TOLERANCE = 1;
 
 function walk(parent: ExtractedElement, issues: Issue[]): void {
@@ -33,6 +34,9 @@ function walk(parent: ExtractedElement, issues: Issue[]): void {
   const parentBottom = parent.bounds.y + parent.bounds.h;
 
   for (const child of parent.children) {
+    if (child.computed?.position === 'fixed') continue;
+    if (child.computed?.display && INLINE_DISPLAYS.has(child.computed.display)) continue;
+
     const childRight = child.bounds.x + child.bounds.w;
     const childBottom = child.bounds.y + child.bounds.h;
 

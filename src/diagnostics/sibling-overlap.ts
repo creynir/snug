@@ -78,6 +78,13 @@ function walk(parent: ExtractedElement, issues: Issue[], viewport: Viewport): vo
         severity = 'warning';
       }
 
+      // Check for compound form control pattern
+      const compound = isCompoundFormControl(a, b);
+
+      if (compound) {
+        severity = 'warning';
+      }
+
       const issue: Issue = {
         type: 'sibling-overlap',
         severity,
@@ -93,6 +100,10 @@ function walk(parent: ExtractedElement, issues: Issue[], viewport: Viewport): vo
 
       if (bothStackingLayers) {
         issue.context = { stackingLayers: 'true' };
+      }
+
+      if (compound) {
+        issue.context = { compoundControl: 'true' };
       }
 
       issues.push(issue);
@@ -126,4 +137,18 @@ function isStackingLayer(el: ExtractedElement, viewport: Viewport): boolean {
   const elArea = el.bounds.w * el.bounds.h;
   const vpArea = viewport.width * viewport.height;
   return elArea >= vpArea * 0.8;
+}
+
+const FORM_CONTROLS = new Set(['input', 'select', 'textarea']);
+
+function isCompoundFormControl(a: ExtractedElement, b: ExtractedElement): boolean {
+  const aIsForm = FORM_CONTROLS.has(a.tag);
+  const bIsForm = FORM_CONTROLS.has(b.tag);
+  if (!aIsForm && !bIsForm) return false;
+
+  const small = aIsForm ? b : a;
+  if (small.bounds.w > 32 || small.bounds.h > 32) return false;
+  if (small.computed?.position !== 'absolute') return false;
+
+  return true;
 }

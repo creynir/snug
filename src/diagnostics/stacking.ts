@@ -137,7 +137,7 @@ function checkContextTrap(
   }
 }
 
-const Z_ESCALATION_THRESHOLD = 100;
+const Z_ESCALATION_THRESHOLD = 9999;
 
 function checkEscalation(el: ExtractedElement, issues: Issue[]): void {
   const z = parseZIndex(el.computed?.zIndex);

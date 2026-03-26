@@ -27,7 +27,12 @@ function walk(el: ExtractedElement, issues: Issue[]): void {
   // Skip recursion into SVG subtrees — SVG children have irregular spacing by design
   if (el.tag === 'svg') return;
 
-  const siblings = el.children;
+  const allChildren = el.children;
+
+  // Filter out absolute/fixed-positioned children (free placement, spacing not meaningful)
+  const siblings = allChildren.filter(
+    (c) => c.computed?.position !== 'absolute' && c.computed?.position !== 'fixed',
+  );
 
   // Skip spacing check when all children are inline (text flow controls spacing)
   const allInline =
