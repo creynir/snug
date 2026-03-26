@@ -8,6 +8,7 @@ import { checkAspectRatio } from './aspect-ratio.js';
 import { checkViewportFit } from './viewport-fit.js';
 import { checkContentDuplicate } from './content-duplicate.js';
 import { checkStacking } from './stacking.js';
+import { checkSemantic } from './semantic.js';
 
 /** Default diagnostic suite -- all Phase 1 checks. */
 const DEFAULT_DIAGNOSTICS: DiagnosticFn[] = [
@@ -20,6 +21,7 @@ const DEFAULT_DIAGNOSTICS: DiagnosticFn[] = [
   checkViewportFit,
   checkContentDuplicate,
   checkStacking,
+  checkSemantic,
 ];
 
 /**

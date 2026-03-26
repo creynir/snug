@@ -85,13 +85,13 @@ function extractionScript(opts: { depth: number; includeHidden: boolean }): Extr
     'perspective',
   ]);
 
-  const SEMANTIC_ATTRS = ['src', 'href', 'role', 'alt', 'aria-label', 'type'];
+  const SEMANTIC_ATTRS = ['src', 'href', 'role', 'alt', 'aria-label', 'type', 'id', 'aria-labelledby', 'title', 'tabindex'];
 
   function getSemanticAttributes(el: Element): Record<string, string> | undefined {
     const result: Record<string, string> = {};
     for (const attr of SEMANTIC_ATTRS) {
       const val = el.getAttribute(attr);
-      if (val) result[attr] = val;
+      if (val !== null) result[attr] = val;
     }
     // Implicit ARIA landmark roles from tag semantics
     if (!result.role) {

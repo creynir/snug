@@ -63,7 +63,8 @@ export type IssueType =
   | 'aspect-ratio'
   | 'viewport-fit'
   | 'content-duplicate'
-  | 'stacking';
+  | 'stacking'
+  | 'semantic';
 
 export interface Issue {
   type: IssueType;
