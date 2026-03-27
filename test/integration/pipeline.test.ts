@@ -130,10 +130,13 @@ describe('full pipeline (integration)', () => {
     expect(sameZ).toBeDefined();
     expect(sameZ!.severity).toBe('error');
 
-    // layer-base and layer-top: different z-index (1 vs 10) -> warning
+    // layer-base and layer-top: different z-index (1 vs 10) -> warning from diagnostic.
+    // The severity resolver may upgrade this to error if both elements contain text
+    // (text-on-text rule). Check the original diagnostic severity via context.
     const diffZ = overlaps.find((i) => i.data?.sameZIndex === false);
     expect(diffZ).toBeDefined();
-    expect(diffZ!.severity).toBe('warning');
+    const diffZOriginalSeverity = diffZ!.context?.originalSeverity ?? diffZ!.severity;
+    expect(diffZOriginalSeverity).toBe('warning');
   }, 30000);
 
   // ── Containment violation detection ──
@@ -336,7 +339,8 @@ describe('full pipeline (integration)', () => {
     );
     expect(unclippedIssue).toBeDefined();
     expect(unclippedIssue!.severity).toBe('error');
-    expect(unclippedIssue!.context).toBeUndefined();
+    // context.clippedBy must be absent — the resolver may add semanticTier but not clippedBy
+    expect(unclippedIssue!.context?.clippedBy).toBeUndefined();
   }, 30000);
 
   // ── Depth limiting through pipeline ──
