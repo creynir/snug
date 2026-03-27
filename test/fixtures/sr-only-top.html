@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SR-Only Top Positioning Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: sans-serif; }
+    .skip-link {
+      position: absolute;
+      top: -800px;
+      left: 0;
+      width: 200px;
+      height: 30px;
+    }
+    .partially-above {
+      position: absolute;
+      top: -50px;
+      left: 0;
+      width: 200px;
+      height: 100px;
+      background: #ccc;
+    }
+    .content { padding: 20px; margin-top: 100px; }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div class="partially-above">Partially visible element</div>
+  <div class="content" id="main">
+    <h1>Page Title</h1>
+    <p>Some content here for testing.</p>
+  </div>
+</body>
+</html>
