@@ -780,4 +780,64 @@ describe('checkContainment', () => {
       expect(issues.length).toBe(0);
     });
   });
+
+  // ── Edge-mounted suppression ──
+
+  describe('edge-mounted suppression', () => {
+    it('does not emit containment issue when isEdgeMounted returns true', () => {
+      const tree = makeElement({
+        selector: '.container',
+        bounds: { x: 100, y: 100, w: 400, h: 300 },
+        children: [
+          makeElement({
+            selector: '.port',
+            bounds: { x: 95, y: 200, w: 10, h: 10 },
+            computed: { position: 'absolute' },
+          }),
+        ],
+      });
+
+      const issues = checkContainment(tree, viewport);
+      const portIssues = issues.filter((i) => i.element === '.port');
+      expect(portIssues).toEqual([]);
+    });
+
+    it('still emits containment issue when overflow is large (not edge-mounted)', () => {
+      const tree = makeElement({
+        selector: '.container',
+        bounds: { x: 100, y: 100, w: 400, h: 300 },
+        children: [
+          makeElement({
+            selector: '.big-overflow',
+            bounds: { x: 50, y: 100, w: 200, h: 100 },
+            computed: { position: 'absolute' },
+          }),
+        ],
+      });
+
+      const issues = checkContainment(tree, viewport);
+      const overflowIssues = issues.filter((i) => i.element === '.big-overflow');
+      expect(overflowIssues.length).toBe(1);
+      expect(overflowIssues[0].type).toBe('containment');
+    });
+
+    it('still emits containment issue when element is larger than 30px (not a port/badge)', () => {
+      const tree = makeElement({
+        selector: '.container',
+        bounds: { x: 100, y: 100, w: 400, h: 300 },
+        children: [
+          makeElement({
+            selector: '.large-handle',
+            bounds: { x: 80, y: 200, w: 40, h: 40 },
+            computed: { position: 'absolute' },
+          }),
+        ],
+      });
+
+      const issues = checkContainment(tree, viewport);
+      const handleIssues = issues.filter((i) => i.element === '.large-handle');
+      expect(handleIssues.length).toBe(1);
+      expect(handleIssues[0].type).toBe('containment');
+    });
+  });
 });

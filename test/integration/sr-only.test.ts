@@ -175,4 +175,69 @@ describe('sr-only element filtering (integration)', () => {
       await page.close();
     }
   }, 30000);
+
+  // ── Negative-top positioning detection ──
+
+  describe('negative-top positioning', () => {
+    it('skip-link with position:absolute and top:-800px is excluded from extracted tree', async () => {
+      const page = await adapter.render({
+        filePath: resolve(FIXTURES, 'sr-only-top.html'),
+        viewport: { width: 1280, height: 800 },
+      });
+
+      try {
+        const { tree } = await extractDOM(page);
+
+        const skipLink = findInTree(
+          tree,
+          (node) =>
+            node.tag === 'a' &&
+            (node.selector?.includes('skip-link') ?? false),
+        );
+        expect(skipLink).toBeUndefined();
+      } finally {
+        await page.close();
+      }
+    }, 30000);
+
+    it('element with position:absolute and top:-50px is NOT excluded (partially visible)', async () => {
+      const page = await adapter.render({
+        filePath: resolve(FIXTURES, 'sr-only-top.html'),
+        viewport: { width: 1280, height: 800 },
+      });
+
+      try {
+        const { tree } = await extractDOM(page);
+
+        const partial = findInTree(
+          tree,
+          (node) => node.selector?.includes('partially-above') ?? false,
+        );
+        expect(partial).toBeDefined();
+      } finally {
+        await page.close();
+      }
+    }, 30000);
+
+    it('skip-link is included when includeHidden is true', async () => {
+      const page = await adapter.render({
+        filePath: resolve(FIXTURES, 'sr-only-top.html'),
+        viewport: { width: 1280, height: 800 },
+      });
+
+      try {
+        const { tree } = await extractDOM(page, { includeHidden: true });
+
+        const skipLink = findInTree(
+          tree,
+          (node) =>
+            node.tag === 'a' &&
+            (node.selector?.includes('skip-link') ?? false),
+        );
+        expect(skipLink).toBeDefined();
+      } finally {
+        await page.close();
+      }
+    }, 30000);
+  });
 });

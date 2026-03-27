@@ -533,7 +533,7 @@ describe('resolveSeverity — context fields', () => {
     expect(resolved[0].context?.semanticTier).toBe('decorative');
   });
 
-  it('22. does not add originalSeverity when severity unchanged', () => {
+  it('22. does not add originalSeverity when severity unchanged (functional element)', () => {
     const tree = makeElement({
       selector: 'body',
       tag: 'body',
@@ -561,5 +561,109 @@ describe('resolveSeverity — context fields', () => {
     expect(resolved[0].context?.originalSeverity).toBeUndefined();
     // But semanticTier should still be there
     expect(resolved[0].context?.semanticTier).toBe('functional');
+  });
+});
+
+// ──────────────────────────────────────────
+// Compound Control Flag Override
+// ──────────────────────────────────────────
+
+describe('resolveSeverity — compound control flag override', () => {
+  it('23. does not upgrade sibling-overlap to error when issue has compoundControl context, even on critical element (input)', () => {
+    const tree = makeElement({
+      selector: 'body',
+      tag: 'body',
+      children: [
+        makeElement({
+          selector: '.form input',
+          tag: 'input',
+          attributes: { type: 'text' },
+        }),
+        makeElement({
+          selector: '.form .icon',
+          tag: 'span',
+          bounds: { x: 0, y: 0, w: 20, h: 20 },
+        }),
+      ],
+    });
+
+    const issues = [
+      makeIssue({
+        type: 'sibling-overlap',
+        severity: 'warning',
+        element: '.form input',
+        element2: '.form .icon',
+        detail: 'Siblings overlap (compound form control)',
+        context: { compoundControl: 'true' },
+      }),
+    ];
+
+    const resolved = resolveSeverity(issues, tree, viewport);
+    expect(resolved.length).toBe(1);
+    // Should stay warning, NOT be upgraded to error despite critical tier
+    expect(resolved[0].severity).toBe('warning');
+  });
+
+  it('24. still upgrades sibling-overlap to error for critical element without compoundControl context', () => {
+    const tree = makeElement({
+      selector: 'body',
+      tag: 'body',
+      children: [
+        makeElement({
+          selector: '.form input',
+          tag: 'input',
+          attributes: { type: 'text' },
+        }),
+        makeElement({
+          selector: '.form .other',
+          tag: 'div',
+          bounds: { x: 0, y: 0, w: 100, h: 100 },
+        }),
+      ],
+    });
+
+    const issues = [
+      makeIssue({
+        type: 'sibling-overlap',
+        severity: 'warning',
+        element: '.form input',
+        element2: '.form .other',
+        detail: 'Siblings overlap',
+      }),
+    ];
+
+    const resolved = resolveSeverity(issues, tree, viewport);
+    expect(resolved.length).toBe(1);
+    // Should be upgraded to error for critical element without compoundControl
+    expect(resolved[0].severity).toBe('error');
+  });
+
+  it('25. does not affect non-overlap issues on critical elements (viewport-overflow on input still upgrades)', () => {
+    const tree = makeElement({
+      selector: 'body',
+      tag: 'body',
+      children: [
+        makeElement({
+          selector: '.form input',
+          tag: 'input',
+          attributes: { type: 'text' },
+        }),
+      ],
+    });
+
+    const issues = [
+      makeIssue({
+        type: 'viewport-overflow',
+        severity: 'warning',
+        element: '.form input',
+        detail: 'Input overflows viewport',
+        context: { compoundControl: 'true' },
+      }),
+    ];
+
+    const resolved = resolveSeverity(issues, tree, viewport);
+    expect(resolved.length).toBe(1);
+    // viewport-overflow on critical element should still be upgraded to error
+    expect(resolved[0].severity).toBe('error');
   });
 });
