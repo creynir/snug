@@ -57,8 +57,12 @@ export function resolveSeverity(issues: Issue[], tree: ExtractedElement, _viewpo
 
     // Rule 1: Critical upgrade
     if (tier === 'critical' && severity === 'warning') {
-      severity = 'error';
-      severityReason = 'Critical element affected — may block user task.';
+      if (issue.type === 'sibling-overlap' && issue.context?.compoundControl === 'true') {
+        // Skip — compound form control overlap is always intentional
+      } else {
+        severity = 'error';
+        severityReason = 'Critical element affected — may block user task.';
+      }
     }
 
     // Rule 2: Decorative downgrade (containment or sibling-overlap only)

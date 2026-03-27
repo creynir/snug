@@ -18,8 +18,17 @@ import type { ExtractedElement, Issue, IssueSeverity, Viewport } from '../types.
  */
 export function checkViewportOverflow(tree: ExtractedElement, viewport: Viewport): Issue[] {
   const issues: Issue[] = [];
-  walk(tree, viewport, issues, undefined, false);
+  walk(tree, viewport, issues, undefined, false, []);
   return issues;
+}
+
+function isAncestorFullyOffScreen(ancestors: ExtractedElement[], viewport: Viewport): boolean {
+  return ancestors.some(a =>
+    a.bounds.x + a.bounds.w <= 0 ||
+    a.bounds.y + a.bounds.h <= 0 ||
+    a.bounds.x >= viewport.width ||
+    a.bounds.y >= viewport.height
+  );
 }
 
 function isClippingElement(el: ExtractedElement): boolean {
@@ -47,7 +56,10 @@ function walk(
   issues: Issue[],
   clippingAncestor: ExtractedElement | undefined,
   insideSvg: boolean,
+  ancestors: ExtractedElement[],
 ): void {
+  if (isAncestorFullyOffScreen(ancestors, viewport)) return;
+
   const rightEdge = el.bounds.x + el.bounds.w;
 
   if (!insideSvg && rightEdge > viewport.width) {
@@ -106,6 +118,6 @@ function walk(
   const nextInsideSvg = insideSvg || el.tag === 'svg';
 
   for (const child of el.children) {
-    walk(child, viewport, issues, nextClipping, nextInsideSvg);
+    walk(child, viewport, issues, nextClipping, nextInsideSvg, [...ancestors, el]);
   }
 }

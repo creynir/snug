@@ -64,7 +64,8 @@ export type IssueType =
   | 'viewport-fit'
   | 'content-duplicate'
   | 'stacking'
-  | 'semantic';
+  | 'semantic'
+  | 'occlusion';
 
 export interface Issue {
   type: IssueType;

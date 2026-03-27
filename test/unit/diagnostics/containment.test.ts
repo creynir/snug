@@ -628,8 +628,8 @@ describe('checkContainment', () => {
   // ── Fix 2a: Edge-mounted element context ──
 
   describe('edge-mounted element context (Fix 2a)', () => {
-    it('reports warning (not error) for 10px-wide element overflowing parent by 5px (50% = edge-mounted)', () => {
-      // 10px port, overflowing left by 5px = 50% of its width => edge-mounted
+    it('suppresses edge-mounted 10px-wide element overflowing parent by 5px (50% = edge-mounted)', () => {
+      // 10px port, overflowing left by 5px = 50% of its width => edge-mounted => suppressed
       const tree = makeElement({
         selector: '.container',
         bounds: { x: 100, y: 100, w: 400, h: 300 },
@@ -643,11 +643,10 @@ describe('checkContainment', () => {
         ],
       });
       const issues = checkContainment(tree, viewport);
-      expect(issues.length).toBe(1);
-      expect(issues[0].severity).toBe('warning');
+      expect(issues.length).toBe(0);
     });
 
-    it('reports warning with context.edgeMounted for edge-mounted element', () => {
+    it('suppresses edge-mounted element entirely (no issue emitted)', () => {
       const tree = makeElement({
         selector: '.container',
         bounds: { x: 100, y: 100, w: 400, h: 300 },
@@ -660,9 +659,7 @@ describe('checkContainment', () => {
         ],
       });
       const issues = checkContainment(tree, viewport);
-      expect(issues.length).toBe(1);
-      expect(issues[0].context).toBeDefined();
-      expect(issues[0].context?.edgeMounted).toBe('true');
+      expect(issues.length).toBe(0);
     });
 
     it('still reports error for 200px-wide element overflowing by 100px (too large to be edge-mounted)', () => {
@@ -707,8 +704,8 @@ describe('checkContainment', () => {
       expect(issues[0].context?.edgeMounted).toBeUndefined();
     });
 
-    it('detects edge-mounting on all four edges', () => {
-      // Test each edge: left, right, top, bottom
+    it('suppresses edge-mounting on all four edges', () => {
+      // Test each edge: left, right, top, bottom — all suppressed
       const makeEdgeTest = (selector: string, childBounds: { x: number; y: number; w: number; h: number }) => {
         return makeElement({
           selector: '.container',
@@ -726,26 +723,22 @@ describe('checkContainment', () => {
       // Left edge: 10px port, 5px overflow left
       const leftTree = makeEdgeTest('.port-left', { x: 95, y: 200, w: 10, h: 10 });
       const leftIssues = checkContainment(leftTree, viewport);
-      expect(leftIssues.length).toBe(1);
-      expect(leftIssues[0].context?.edgeMounted).toBe('true');
+      expect(leftIssues.length).toBe(0);
 
       // Right edge: 10px port, 5px overflow right (parent right = 500)
       const rightTree = makeEdgeTest('.port-right', { x: 495, y: 200, w: 10, h: 10 });
       const rightIssues = checkContainment(rightTree, viewport);
-      expect(rightIssues.length).toBe(1);
-      expect(rightIssues[0].context?.edgeMounted).toBe('true');
+      expect(rightIssues.length).toBe(0);
 
       // Top edge: 10px port, 5px overflow top
       const topTree = makeEdgeTest('.port-top', { x: 200, y: 95, w: 10, h: 10 });
       const topIssues = checkContainment(topTree, viewport);
-      expect(topIssues.length).toBe(1);
-      expect(topIssues[0].context?.edgeMounted).toBe('true');
+      expect(topIssues.length).toBe(0);
 
       // Bottom edge: 10px port, 5px overflow bottom (parent bottom = 400)
       const bottomTree = makeEdgeTest('.port-bottom', { x: 200, y: 395, w: 10, h: 10 });
       const bottomIssues = checkContainment(bottomTree, viewport);
-      expect(bottomIssues.length).toBe(1);
-      expect(bottomIssues[0].context?.edgeMounted).toBe('true');
+      expect(bottomIssues.length).toBe(0);
     });
 
     it('element must be <= 30px on overflow axis to qualify as edge-mounted', () => {
@@ -768,8 +761,8 @@ describe('checkContainment', () => {
       expect(issues[0].context?.edgeMounted).toBeUndefined();
     });
 
-    it('edge-mounted on bottom edge works (small height element)', () => {
-      // 8px tall element overflowing bottom by 4px = 50% ratio
+    it('suppresses edge-mounted on bottom edge (small height element)', () => {
+      // 8px tall element overflowing bottom by 4px = 50% ratio => edge-mounted => suppressed
       const tree = makeElement({
         selector: '.container',
         bounds: { x: 100, y: 100, w: 400, h: 300 },
@@ -784,9 +777,7 @@ describe('checkContainment', () => {
         ],
       });
       const issues = checkContainment(tree, viewport);
-      expect(issues.length).toBe(1);
-      expect(issues[0].severity).toBe('warning');
-      expect(issues[0].context?.edgeMounted).toBe('true');
+      expect(issues.length).toBe(0);
     });
   });
 });

@@ -117,6 +117,8 @@ function extractionScript(opts: { depth: number; includeHidden: boolean }): Extr
     // Off-screen positioning
     const rect = el.getBoundingClientRect();
     if (rect.right < -1000 || rect.bottom < -1000) return true;
+    // Negative top positioning (skip-links using top: -800px or similar)
+    if (cs.position === 'absolute' && rect.bottom < -500) return true;
     return false;
   }
 

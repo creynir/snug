@@ -63,26 +63,19 @@ function walk(parent: ExtractedElement, issues: Issue[]): void {
 
     const maxOverflow = Math.max(overflowLeft, overflowTop, overflowRight, overflowBottom);
     if (maxOverflow > 0) {
-      let severity: IssueSeverity = maxOverflow > 20 ? 'error' : 'warning';
+      const severity: IssueSeverity = maxOverflow > 20 ? 'error' : 'warning';
       const sides: string[] = [];
       if (overflowLeft > 0) sides.push(`left(${overflowLeft}px)`);
       if (overflowTop > 0) sides.push(`top(${overflowTop}px)`);
       if (overflowRight > 0) sides.push(`right(${overflowRight}px)`);
       if (overflowBottom > 0) sides.push(`bottom(${overflowBottom}px)`);
 
-      const edgeMounted = isEdgeMounted(
-        child,
-        overflowLeft,
-        overflowRight,
-        overflowTop,
-        overflowBottom,
-      );
-
-      if (edgeMounted) {
-        severity = 'warning';
+      if (isEdgeMounted(child, overflowLeft, overflowRight, overflowTop, overflowBottom)) {
+        // Skip — intentional edge-mounted element (ports, badges, handles)
+        continue;
       }
 
-      const issue: Issue = {
+      issues.push({
         type: 'containment',
         severity,
         element: child.selector,
@@ -90,13 +83,7 @@ function walk(parent: ExtractedElement, issues: Issue[]): void {
         detail: `Exceeds parent bounds on ${sides.join(', ')}`,
         computed: child.computed,
         data: { overflowRight, overflowBottom, overflowLeft, overflowTop },
-      };
-
-      if (edgeMounted) {
-        issue.context = { edgeMounted: 'true' };
-      }
-
-      issues.push(issue);
+      });
     }
 
     // Recurse into child
