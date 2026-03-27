@@ -130,10 +130,10 @@ describe('checkOcclusion — cross-level occlusion (FOLLOWUP-007 Task 3)', () =>
           children: [
             makeElement({
               selector: '.panel-b',
-              // Only slight overlap: x overlap = 350-300 = 50px, y overlap = 200
+              // Only slight overlap: x overlap = 400-350 = 50px, y overlap = 200
               // overlap area = 50*200 = 10000, smaller area = 200*200 = 40000
               // ratio = 10000/40000 = 25% < 50%
-              bounds: { x: 300, y: 100, w: 200, h: 200 },
+              bounds: { x: 350, y: 100, w: 200, h: 200 },
               text: 'Some text',
               computed: { 'z-index': '1' },
             }),
