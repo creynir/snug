@@ -6,6 +6,10 @@
   "bin": {
     "snug": "./dist/cli.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/creynir/snug"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
