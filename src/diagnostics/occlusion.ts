@@ -15,7 +15,7 @@ function getZIndex(el: ExtractedElement): number {
   return isNaN(n) ? 0 : n;
 }
 
-export function checkOcclusion(tree: ExtractedElement, _viewport: Viewport): Issue[] {
+export function checkOcclusion(tree: ExtractedElement, viewport: Viewport): Issue[] {
   const issues: Issue[] = [];
   const elements: ExtractedElement[] = [];
   const parentPaths = new Map<ExtractedElement, ExtractedElement[]>();
@@ -84,6 +84,17 @@ export function checkOcclusion(tree: ExtractedElement, _viewport: Viewport): Iss
         topEl = orderB > orderA ? b : a;
         bottomEl = orderB > orderA ? a : b;
       }
+
+      // Skip when covered element is much larger than covering element
+      // A small element can't meaningfully occlude a large container — it only covers a tiny fraction
+      const coveringArea = topEl.bounds.w * topEl.bounds.h;
+      const coveredArea = bottomEl.bounds.w * bottomEl.bounds.h;
+      if (coveredArea > coveringArea * 4) continue;
+
+      // Skip when covering element is a full-viewport fixed overlay (modal/backdrop)
+      // These intentionally cover everything — not real occlusion
+      const vpArea = viewport.width * viewport.height;
+      if (topEl.computed?.position === 'fixed' && coveringArea >= vpArea * 0.5) continue;
 
       // Only flag if bottom element has text
       if (!hasTextInSubtree(bottomEl)) continue;

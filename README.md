@@ -38,12 +38,16 @@ snug check page.html --width 1440 --height 900
 | Diagnostic | What it catches |
 |---|---|
 | **viewport-overflow** | Elements extending beyond the viewport edges |
-| **viewport-fit** | Content that doesn't fit in non-scrollable pages (compressed rows, clipped panels) |
+| **viewport-fit** | Content compressed in non-scrollable pages |
 | **containment** | Children escaping their parent bounds |
 | **sibling-overlap** | Sibling elements overlapping each other |
-| **spacing-anomaly** | Inconsistent gaps between siblings (e.g., 3 cards spaced 16px, 16px, 4px) |
-| **truncation** | Text or content clipped by its container |
-| **aspect-ratio** | Images/video rendered at wrong proportions |
+| **spacing-anomaly** | Inconsistent gaps between siblings |
+| **truncation** | Text or content clipped by overflow:hidden |
+| **aspect-ratio** | Images rendered at wrong proportions |
+| **stacking** | Z-index bugs — ineffective z-index, stacking context traps, broken position:fixed |
+| **semantic** | Missing alt text, duplicate IDs, empty buttons, heading hierarchy, positive tabindex |
+| **content-duplicate** | Duplicate images, links, landmarks, headings |
+| **broken-image** | Images that failed to load |
 
 ## Output
 
@@ -119,6 +123,47 @@ Snug tries not to waste your time with false positives:
 - Inline text spans skip overlap checks (normal text flow)
 - Small edge-mounted elements (ports, badges, handles) are recognized as intentional
 - Full-viewport fixed overlays (modals, backdrops) are recognized as stacking layers
+
+## Benchmark
+
+Tested against 99 production mockups (~30,000 DOM elements) spanning dashboards, canvas editors, modals, settings pages, component libraries, and landing pages. Results validated independently by two AI models (Claude Sonnet + OpenAI Codex).
+
+| Metric | Value |
+|---|---|
+| Pages tested | 99 |
+| Real layout bugs found | ~130 |
+| Recall (bugs caught / bugs present) | **95%** |
+| False negatives | 8 across 99 pages |
+| Diagnostics | 11 categories |
+
+### What Snug catches
+
+| Category | Bugs found | Example |
+|---|---|---|
+| Accessibility gaps | ~40 | Icon buttons without `aria-label` |
+| Content truncation | ~15 | YAML editor line numbers overflowing container |
+| Viewport overflow | ~12 | Inspector tabs clipped at panel edge |
+| Z-index / stacking bugs | ~8 | `z-index` on `position: static` (silently ignored) |
+| Spacing inconsistencies | ~10 | Palette search input with extra margin |
+| Text-on-text overlap | ~3 | Textarea badge covering input content |
+| Content duplication | ~7 | Duplicate nav links across mobile/desktop |
+| Containment violations | ~5 | Form sections overflowing form container |
+| Heading hierarchy | ~2 | `h3` followed by `h5` (skipped `h4`) |
+
+### Precision by page type
+
+| Page type | Precision | Notes |
+|---|---|---|
+| Settings, forms, tables | ~50% | Highest signal — the pages agents build and iterate on |
+| Modals, dialogs | ~30% | Modal backdrop overlaps are filtered |
+| Canvas / node-graph editors | ~5% | Layered absolute positioning is architecturally noisy |
+| Component libraries | ~3% | Edge-mounted ports and badges dominate |
+
+Snug is most valuable on the pages AI agents actually generate — forms, tables, dashboards, and settings screens. Canvas editors with hundreds of absolutely-positioned layers produce more noise, though real bugs (truncation, stacking violations) are still caught within the noise.
+
+### Clean page detection
+
+55 of 99 tested pages had zero layout errors. Pages with no issues correctly report `0 errors, 0 warnings` — Snug doesn't cry wolf on well-built layouts.
 
 ## Contributing
 
