@@ -1,4 +1,5 @@
-import type { ExtractedElement, ExtractionOptions, PageHandle, Viewport } from '../types.js';
+import type { ExtractedElement, ExtractionOptions, PageHandle, Viewport, VisibilityMap } from '../types.js';
+import { collectProbeTargets } from '../diagnostics/occlusion.js';
 
 /**
  * In-page extraction script. This function is serialized and executed
@@ -236,10 +237,167 @@ function extractionScript(opts: { depth: number; includeHidden: boolean }): Extr
   );
 }
 
+/**
+ * Visibility probe script. Runs inside the browser via page.evaluate().
+ * Must be self-contained — no closures, no imports.
+ * Re-walks the DOM in the same DFS order as extractionScript using identical skip logic.
+ */
+function visibilityProbeScript(
+  targets: Array<{ index: number; bounds: { x: number; y: number; w: number; h: number } }>,
+  opts: { depth: number; includeHidden: boolean },
+): Array<{ index: number; visibilityRatio: number; occludedBy: Array<{ index: number; samples: number }> }> {
+  const SKIP_TAGS = new Set(['script', 'style', 'link', 'meta', 'noscript', 'br', 'wbr']);
+
+  function isSrOnly(el: Element): boolean {
+    const cs = getComputedStyle(el);
+    if (cs.position === 'absolute' && cs.clip === 'rect(0px, 0px, 0px, 0px)') return true;
+    if (cs.position === 'absolute' && cs.width === '1px' && cs.height === '1px') return true;
+    const rect = el.getBoundingClientRect();
+    if (rect.right < -1000 || rect.bottom < -1000) return true;
+    if (cs.position === 'absolute' && rect.bottom < -500) return true;
+    return false;
+  }
+
+  // Build index→Element map by re-walking DOM in same DFS order as extraction
+  const indexToElement = new Map<number, Element>();
+  const elementToIndex = new Map<Element, number>();
+  let dfsIndex = 0;
+
+  function walk(el: Element, currentDepth: number): void {
+    const tag = el.tagName.toLowerCase();
+    if (SKIP_TAGS.has(tag)) return;
+
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0 && el.children.length === 0) return;
+
+    if (!opts.includeHidden) {
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none') return;
+      if (isSrOnly(el)) return;
+    }
+
+    const idx = dfsIndex++;
+    indexToElement.set(idx, el);
+    elementToIndex.set(el, idx);
+
+    if (opts.depth === 0 || currentDepth < opts.depth) {
+      for (const child of Array.from(el.children)) {
+        walk(child, currentDepth + 1);
+      }
+    }
+  }
+
+  const body = document.body;
+  if (body) walk(body, 0);
+
+  // For each target, sample points and determine visibility
+  const results: Array<{ index: number; visibilityRatio: number; occludedBy: Array<{ index: number; samples: number }> }> = [];
+
+  for (const target of targets) {
+    const el = indexToElement.get(target.index);
+    if (!el) continue;
+
+    const b = target.bounds;
+    if (b.w <= 0 || b.h <= 0) continue;
+
+    // Generate coarse sample points: center + 4 corners inset 10%
+    const insetX = b.w * 0.1;
+    const insetY = b.h * 0.1;
+    const coarsePoints = [
+      { x: b.x + b.w / 2, y: b.y + b.h / 2 },  // center
+      { x: b.x + insetX, y: b.y + insetY },       // top-left
+      { x: b.x + b.w - insetX, y: b.y + insetY }, // top-right
+      { x: b.x + insetX, y: b.y + b.h - insetY }, // bottom-left
+      { x: b.x + b.w - insetX, y: b.y + b.h - insetY }, // bottom-right
+    ];
+
+    function classifyPoint(px: number, py: number): { status: 'visible' | 'outside' | 'occluded'; occluderElements: Element[] } {
+      const stack = document.elementsFromPoint(px, py);
+      const idx = stack.indexOf(el!);
+      if (idx === -1) return { status: 'outside', occluderElements: [] };
+      if (idx === 0) return { status: 'visible', occluderElements: [] };
+
+      const covering = stack.slice(0, idx);
+      // Filter out ancestors of the target (they're structural containers above)
+      // AND descendants of the target (they're the target's own content)
+      const nonRelatives = covering.filter(c => (!c.contains(el!) || c === el!) && !el!.contains(c));
+      if (nonRelatives.length === 0) return { status: 'visible', occluderElements: [] };
+
+      // Find all opaque (non-transparent) occluders
+      const opaqueOccluders: Element[] = [];
+      for (const c of nonRelatives) {
+        const cs = getComputedStyle(c);
+        if (parseFloat(cs.opacity) < 0.1) continue;
+        const bg = cs.backgroundColor;
+        const isTransBg = bg === 'transparent' || bg === 'rgba(0, 0, 0, 0)';
+        if (isTransBg && cs.backgroundImage === 'none') continue;
+        opaqueOccluders.push(c);
+      }
+      if (opaqueOccluders.length === 0) return { status: 'visible', occluderElements: [] };
+      return { status: 'occluded', occluderElements: opaqueOccluders };
+    }
+
+    // Coarse pass
+    let visibleCount = 0;
+    let totalCount = 0;
+    const occluderSamples = new Map<number, number>(); // occluder DFS index → sample count
+
+    function processPoint(px: number, py: number): void {
+      const result = classifyPoint(px, py);
+      if (result.status === 'outside') return; // don't count
+      totalCount++;
+      if (result.status === 'visible') {
+        visibleCount++;
+      } else {
+        for (const occEl of result.occluderElements) {
+          const occIdx = elementToIndex.get(occEl);
+          if (occIdx !== undefined) {
+            occluderSamples.set(occIdx, (occluderSamples.get(occIdx) ?? 0) + 1);
+          }
+        }
+      }
+    }
+
+    for (const p of coarsePoints) {
+      processPoint(p.x, p.y);
+    }
+
+    // Determine if refinement needed
+    const coarseRatio = totalCount > 0 ? visibleCount / totalCount : 1.0;
+    if (coarseRatio > 0 && coarseRatio < 1) {
+      // Refine with 4x4 grid (16 more points at 20/40/60/80%)
+      const fracs = [0.2, 0.4, 0.6, 0.8];
+      for (const fx of fracs) {
+        for (const fy of fracs) {
+          processPoint(b.x + b.w * fx, b.y + b.h * fy);
+        }
+      }
+    }
+
+    const finalRatio = totalCount > 0 ? visibleCount / totalCount : 1.0;
+    // Round to 2 decimal places
+    const roundedRatio = Math.round(finalRatio * 100) / 100;
+
+    const occludedByArr: Array<{ index: number; samples: number }> = [];
+    for (const [occIdx, count] of occluderSamples) {
+      occludedByArr.push({ index: occIdx, samples: count });
+    }
+    occludedByArr.sort((a, b_) => b_.samples - a.samples);
+
+    results.push({
+      index: target.index,
+      visibilityRatio: roundedRatio,
+      occludedBy: occludedByArr,
+    });
+  }
+
+  return results;
+}
+
 export async function extractDOM(
   page: PageHandle,
   options: ExtractionOptions = {},
-): Promise<{ tree: ExtractedElement; viewport: Viewport }> {
+): Promise<{ tree: ExtractedElement; viewport: Viewport; visibility?: VisibilityMap }> {
   const opts = {
     depth: options.depth ?? 0,
     includeHidden: options.includeHidden ?? false,
@@ -248,5 +406,39 @@ export async function extractDOM(
   const tree = await page.evaluateWithArgs(extractionScript, opts);
   const viewport = page.viewport();
 
-  return { tree, viewport };
+  // Visibility probe (default: enabled)
+  if (options.probeVisibility === false) {
+    return { tree, viewport };
+  }
+
+  const targets = collectProbeTargets(tree, viewport);
+  if (targets.length === 0) {
+    return { tree, viewport, visibility: new Map() };
+  }
+
+  const probeTargets = targets.map(t => ({ index: t.index, bounds: t.bounds }));
+  const rawResults = await page.evaluateWithArgs(visibilityProbeScript, probeTargets, opts);
+
+  // Convert to VisibilityMap
+  const visibility: VisibilityMap = new Map();
+  for (const r of rawResults) {
+    const occludedSamples = r.occludedBy.reduce((sum, o) => sum + o.samples, 0);
+    // total non-outside samples: visible + occluded
+    // visibilityRatio = visible / total => total = occludedSamples / (1 - ratio)
+    const totalNonOutside = r.visibilityRatio < 1
+      ? occludedSamples / (1 - r.visibilityRatio)
+      : 1; // fully visible, no occluders expected
+
+    const occludedBy = r.occludedBy.map(o => ({
+      index: o.index,
+      coverage: totalNonOutside > 0 ? o.samples / totalNonOutside : 0,
+    }));
+
+    visibility.set(r.index, {
+      ratio: r.visibilityRatio,
+      occludedBy,
+    });
+  }
+
+  return { tree, viewport, visibility };
 }

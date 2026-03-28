@@ -48,6 +48,8 @@ export interface ExtractionOptions {
   depth?: number;
   /** Include invisible elements (display:none, visibility:hidden) */
   includeHidden?: boolean;
+  /** Enable/disable visibility sampling (default: true) */
+  probeVisibility?: boolean;
 }
 
 // ── Diagnostics ──

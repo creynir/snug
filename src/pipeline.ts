@@ -2,6 +2,7 @@ import type { BrowserAdapter, CheckOptions, SnugReport, Viewport } from './types
 import { PuppeteerAdapter } from './browser/puppeteer.js';
 import { extractDOM } from './extractor/extract.js';
 import { runDiagnostics } from './diagnostics/index.js';
+import { checkOcclusion } from './diagnostics/occlusion.js';
 import { resolveSeverity } from './diagnostics/severity-resolver.js';
 import { formatReport } from './reporter/format.js';
 
@@ -50,12 +51,14 @@ export async function check(
     });
 
     try {
-      const { tree, viewport: actualViewport } = await extractDOM(page, {
+      const { tree, viewport: actualViewport, visibility } = await extractDOM(page, {
         depth: options.depth,
       });
 
       const issues = runDiagnostics(tree, actualViewport);
-      const resolved = resolveSeverity(issues, tree, actualViewport);
+      const occlusionIssues = checkOcclusion(tree, actualViewport, visibility);
+      const allIssues = [...issues, ...occlusionIssues];
+      const resolved = resolveSeverity(allIssues, tree, actualViewport);
 
       const report: SnugReport = {
         viewport: actualViewport,
