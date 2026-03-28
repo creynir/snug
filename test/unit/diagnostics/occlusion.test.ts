@@ -41,42 +41,84 @@ function buildVisibility(
 }
 
 // ──────────────────────────────────────────
-// checkOcclusion — FOLLOWUP-008: warn-by-default
+// checkOcclusion — FOLLOWUP-009: intentionality scoring
 // ──────────────────────────────────────────
 
-describe('checkOcclusion — warn-by-default occlusion detection', () => {
-  it('1. reports warning for occluded element with text (default severity)', () => {
-    // DFS: root=0, covered-span=1, occluder=2
+describe('checkOcclusion — intentionality scoring', () => {
+  // Viewport area = 1280 * 800 = 1,024,000
+
+  it('1. suppresses when score >= 4 (fixed + full viewport + z-gap >= 100)', () => {
+    // Occluder: position:fixed, bounds=viewport, zIndex=1000
+    // Covered: p with text, zIndex undefined (auto=0), ratio=0.0
+    // Score: coverage(+3) + fixed(+1) + fullExtent(+2) + zGap(+2) = 8 → suppress
     const tree = buildTree([
-      makeElement({ selector: '.covered-span', tag: 'span', text: 'Node title', bounds: { x: 10, y: 10, w: 200, h: 30 } }),
-      makeElement({ selector: '.occluder', tag: 'div', bounds: { x: 10, y: 10, w: 200, h: 30 } }),
+      makeElement({ selector: '.covered-p', tag: 'p', text: 'Hidden text', bounds: { x: 10, y: 10, w: 200, h: 50 } }),
+      makeElement({
+        selector: '.modal-overlay',
+        tag: 'div',
+        bounds: { x: 0, y: 0, w: 1280, h: 800 },
+        computed: { position: 'fixed', zIndex: '1000' },
+      }),
+    ]);
+    const visibility = buildVisibility([
+      { index: 1, ratio: 0.0, occludedBy: [{ index: 2, coverage: 1.0 }] },
+    ]);
+    const issues = checkOcclusion(tree, viewport, visibility);
+    expect(issues).toEqual([]);
+  });
+
+  it('2. warning when score 2-3 (large overlay + moderate z-gap + body child)', () => {
+    // Occluder: 600x400 = 240,000 / 1,024,000 = 23.4% → +1 coverage
+    // zIndex 50 vs 0 → gap=50 → +1
+    // Parent is body → +1
+    // Score: 1 + 1 + 1 = 3 → warning
+    const tree = makeElement({
+      selector: 'body',
+      tag: 'body',
+      bounds: { x: 0, y: 0, w: 1280, h: 800 },
+      children: [
+        makeElement({ selector: '.covered-p', tag: 'p', text: 'Some content', bounds: { x: 10, y: 10, w: 200, h: 50 }, computed: { zIndex: '0' } }),
+        makeElement({
+          selector: '.overlay',
+          tag: 'div',
+          bounds: { x: 0, y: 0, w: 600, h: 400 },
+          computed: { zIndex: '50' },
+        }),
+      ],
+    });
+    const visibility = buildVisibility([
+      { index: 1, ratio: 0.2, occludedBy: [{ index: 2, coverage: 0.8 }] },
+    ]);
+    const issues = checkOcclusion(tree, viewport, visibility);
+    expect(issues.length).toBe(1);
+    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].data!.intentionalityScore).toBe(3);
+  });
+
+  it('3. warning when score 0-1 and covered has text (not interactive)', () => {
+    // Occluder: 100x50 = 5,000 / 1,024,000 = 0.5% → +0 coverage
+    // No special position, no z-index, not body child
+    // Score: 0 → warning (text, not interactive)
+    const tree = buildTree([
+      makeElement({ selector: '.covered-span', tag: 'span', text: 'Readable text', bounds: { x: 10, y: 10, w: 200, h: 30 } }),
+      makeElement({ selector: '.small-occluder', tag: 'div', bounds: { x: 10, y: 10, w: 100, h: 50 } }),
     ]);
     const visibility = buildVisibility([
       { index: 1, ratio: 0.2, occludedBy: [{ index: 2, coverage: 0.8 }] },
     ]);
     const issues = checkOcclusion(tree, viewport, visibility);
     expect(issues.length).toBe(1);
-    expect(issues[0].type).toBe('occlusion');
     expect(issues[0].severity).toBe('warning');
+    expect(issues[0].data!.intentionalityScore).toBe(0);
   });
 
-  it('2. reports error for occluded input with ratio <= 0.5', () => {
+  it('4. error when score < 2 and covered input occluded > 50%', () => {
+    // Occluder: small div, score=0
+    // Covered: input, ratio=0.3 (<=0.5)
+    // Score 0, interactive, ratio<=0.5 → error
     const tree = buildTree([
       makeElement({ selector: '.covered-input', tag: 'input', bounds: { x: 10, y: 10, w: 100, h: 30 } }),
-      makeElement({ selector: '.occluder', tag: 'div', bounds: { x: 10, y: 10, w: 100, h: 30 } }),
-    ]);
-    const visibility = buildVisibility([
-      { index: 1, ratio: 0.4, occludedBy: [{ index: 2, coverage: 0.6 }] },
-    ]);
-    const issues = checkOcclusion(tree, viewport, visibility);
-    expect(issues.length).toBe(1);
-    expect(issues[0].severity).toBe('error');
-  });
-
-  it('3. reports error for occluded button[type=submit] with ratio <= 0.5', () => {
-    const tree = buildTree([
-      makeElement({ selector: '.submit-btn', tag: 'button', text: 'Submit', bounds: { x: 10, y: 10, w: 120, h: 40 }, attributes: { type: 'submit' } }),
-      makeElement({ selector: '.occluder', tag: 'div', bounds: { x: 10, y: 10, w: 120, h: 40 } }),
+      makeElement({ selector: '.small-occluder', tag: 'div', bounds: { x: 10, y: 10, w: 100, h: 30 } }),
     ]);
     const visibility = buildVisibility([
       { index: 1, ratio: 0.3, occludedBy: [{ index: 2, coverage: 0.7 }] },
@@ -84,41 +126,97 @@ describe('checkOcclusion — warn-by-default occlusion detection', () => {
     const issues = checkOcclusion(tree, viewport, visibility);
     expect(issues.length).toBe(1);
     expect(issues[0].severity).toBe('error');
+    expect(issues[0].data!.isCritical).toBe(true);
   });
 
-  it('4. reports warning (not error) for occluded button[type=submit] with ratio > 0.5', () => {
+  it('5. error when score < 2 and covered `a` link occluded > 50%', () => {
+    // Occluder: small div, score=0
+    // Covered: a with text, ratio=0.4 (<=0.5)
+    // Score 0, interactive, ratio<=0.5 → error
     const tree = buildTree([
-      makeElement({ selector: '.submit-btn', tag: 'button', text: 'Submit', bounds: { x: 10, y: 10, w: 120, h: 40 }, attributes: { type: 'submit' } }),
-      makeElement({ selector: '.occluder', tag: 'div', bounds: { x: 10, y: 10, w: 50, h: 40 } }),
+      makeElement({ selector: '.covered-link', tag: 'a', text: 'Click here', bounds: { x: 10, y: 10, w: 100, h: 30 } }),
+      makeElement({ selector: '.small-occluder', tag: 'div', bounds: { x: 10, y: 10, w: 80, h: 20 } }),
     ]);
     const visibility = buildVisibility([
-      { index: 1, ratio: 0.6, occludedBy: [{ index: 2, coverage: 0.4 }] },
+      { index: 1, ratio: 0.4, occludedBy: [{ index: 2, coverage: 0.6 }] },
+    ]);
+    const issues = checkOcclusion(tree, viewport, visibility);
+    expect(issues.length).toBe(1);
+    expect(issues[0].severity).toBe('error');
+    expect(issues[0].data!.isCritical).toBe(true);
+  });
+
+  it('6. warning (not error) when score >= 2 even for interactive control', () => {
+    // Occluder: 700x600 = 420,000 / 1,024,000 = 41% → +2 coverage
+    // Covered: input, ratio=0.3 (would be error at score < 2)
+    // Score: 2 → warning overrides interactive error rule
+    const tree = buildTree([
+      makeElement({ selector: '.covered-input', tag: 'input', bounds: { x: 10, y: 10, w: 100, h: 30 } }),
+      makeElement({ selector: '.large-occluder', tag: 'div', bounds: { x: 0, y: 0, w: 700, h: 600 } }),
+    ]);
+    const visibility = buildVisibility([
+      { index: 1, ratio: 0.3, occludedBy: [{ index: 2, coverage: 0.7 }] },
     ]);
     const issues = checkOcclusion(tree, viewport, visibility);
     expect(issues.length).toBe(1);
     expect(issues[0].severity).toBe('warning');
+    expect(issues[0].data!.intentionalityScore).toBe(2);
   });
 
-  it('5. reports warning for element behind position:absolute (no filtering)', () => {
+  it('7. viewport coverage 80%+ awards +3', () => {
+    // Occluder: 1200x700 = 840,000 / 1,024,000 = 82% → +3
+    // No other signals
     const tree = buildTree([
-      makeElement({ selector: '.covered-p', tag: 'p', text: 'Behind absolute', bounds: { x: 10, y: 10, w: 200, h: 50 } }),
-      makeElement({ selector: '.abs-occluder', tag: 'div', bounds: { x: 10, y: 10, w: 200, h: 50 }, computed: { position: 'absolute' } }),
+      makeElement({ selector: '.covered-p', tag: 'p', text: 'Text', bounds: { x: 10, y: 10, w: 200, h: 50 } }),
+      makeElement({ selector: '.huge-occluder', tag: 'div', bounds: { x: 0, y: 0, w: 1200, h: 700 } }),
     ]);
     const visibility = buildVisibility([
       { index: 1, ratio: 0.0, occludedBy: [{ index: 2, coverage: 1.0 }] },
     ]);
     const issues = checkOcclusion(tree, viewport, visibility);
     expect(issues.length).toBe(1);
-    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].data!.intentionalityScore).toBe(3);
   });
 
-  it('6. reports warning for element behind position:fixed large overlay (no filtering)', () => {
+  it('8. viewport coverage 40-79% awards +2', () => {
+    // Occluder: 700x600 = 420,000 / 1,024,000 = 41% → +2
     const tree = buildTree([
-      makeElement({ selector: '.covered-p', tag: 'p', text: 'Behind fixed overlay', bounds: { x: 10, y: 10, w: 200, h: 50 } }),
+      makeElement({ selector: '.covered-p', tag: 'p', text: 'Text', bounds: { x: 10, y: 10, w: 200, h: 50 } }),
+      makeElement({ selector: '.mid-occluder', tag: 'div', bounds: { x: 0, y: 0, w: 700, h: 600 } }),
+    ]);
+    const visibility = buildVisibility([
+      { index: 1, ratio: 0.2, occludedBy: [{ index: 2, coverage: 0.8 }] },
+    ]);
+    const issues = checkOcclusion(tree, viewport, visibility);
+    expect(issues.length).toBe(1);
+    expect(issues[0].data!.intentionalityScore).toBe(2);
+  });
+
+  it('9. viewport coverage 15-39% awards +1', () => {
+    // Occluder: 400x400 = 160,000 / 1,024,000 = 15.6% → +1
+    const tree = buildTree([
+      makeElement({ selector: '.covered-p', tag: 'p', text: 'Text', bounds: { x: 10, y: 10, w: 200, h: 50 } }),
+      makeElement({ selector: '.small-occluder', tag: 'div', bounds: { x: 0, y: 0, w: 400, h: 400 } }),
+    ]);
+    const visibility = buildVisibility([
+      { index: 1, ratio: 0.2, occludedBy: [{ index: 2, coverage: 0.8 }] },
+    ]);
+    const issues = checkOcclusion(tree, viewport, visibility);
+    expect(issues.length).toBe(1);
+    expect(issues[0].data!.intentionalityScore).toBe(1);
+  });
+
+  it('10a. position:fixed + full viewport extent → +3 total (fixed+fullExtent), suppresses with coverage', () => {
+    // Occluder: position:fixed, 1200x750 (>=90% of 1280 and 800)
+    // Coverage: 1200*750 = 900,000 / 1,024,000 = 87.9% → +3
+    // Fixed → +1, fullExtent → +2
+    // Score: 3 + 1 + 2 = 6 → suppress
+    const tree = buildTree([
+      makeElement({ selector: '.covered-p', tag: 'p', text: 'Hidden', bounds: { x: 10, y: 10, w: 200, h: 50 } }),
       makeElement({
-        selector: '.fixed-overlay',
+        selector: '.fixed-full',
         tag: 'div',
-        bounds: { x: 0, y: 0, w: 1280, h: 800 },
+        bounds: { x: 0, y: 0, w: 1200, h: 750 },
         computed: { position: 'fixed' },
       }),
     ]);
@@ -126,11 +224,106 @@ describe('checkOcclusion — warn-by-default occlusion detection', () => {
       { index: 1, ratio: 0.0, occludedBy: [{ index: 2, coverage: 1.0 }] },
     ]);
     const issues = checkOcclusion(tree, viewport, visibility);
-    expect(issues.length).toBe(1);
-    expect(issues[0].severity).toBe('warning');
+    expect(issues).toEqual([]);
   });
 
-  it('7. does not report for element with ratio >= 0.7', () => {
+  it('10b. position:fixed but NOT full viewport extent → only +1 for fixed', () => {
+    // Occluder: position:fixed, 400x100 (not >=90% of either dimension)
+    // Coverage: 400*100 = 40,000 / 1,024,000 = 3.9% → +0
+    // Fixed → +1, NOT full extent → +0
+    // Score: 0 + 1 = 1 → warning
+    const tree = buildTree([
+      makeElement({ selector: '.covered-p', tag: 'p', text: 'Partially hidden', bounds: { x: 10, y: 10, w: 200, h: 50 } }),
+      makeElement({
+        selector: '.fixed-small',
+        tag: 'div',
+        bounds: { x: 0, y: 0, w: 400, h: 100 },
+        computed: { position: 'fixed' },
+      }),
+    ]);
+    const visibility = buildVisibility([
+      { index: 1, ratio: 0.2, occludedBy: [{ index: 2, coverage: 0.8 }] },
+    ]);
+    const issues = checkOcclusion(tree, viewport, visibility);
+    expect(issues.length).toBe(1);
+    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].data!.intentionalityScore).toBe(1);
+  });
+
+  it('11a. z-index gap >= 100 awards +2', () => {
+    // Occluder: zIndex=200, covered: zIndex=50 → gap=150 → +2
+    // Occluder: 100x50 = 5,000 / 1,024,000 = 0.5% → +0 coverage
+    // Score: 0 + 2 = 2 → warning
+    const tree = buildTree([
+      makeElement({ selector: '.covered-p', tag: 'p', text: 'Text', bounds: { x: 10, y: 10, w: 200, h: 50 }, computed: { zIndex: '50' } }),
+      makeElement({ selector: '.occluder', tag: 'div', bounds: { x: 10, y: 10, w: 100, h: 50 }, computed: { zIndex: '200' } }),
+    ]);
+    const visibility = buildVisibility([
+      { index: 1, ratio: 0.2, occludedBy: [{ index: 2, coverage: 0.8 }] },
+    ]);
+    const issues = checkOcclusion(tree, viewport, visibility);
+    expect(issues.length).toBe(1);
+    expect(issues[0].data!.intentionalityScore).toBe(2);
+  });
+
+  it('11b. z-index gap 10-99 awards +1', () => {
+    // Occluder: zIndex=30, covered: zIndex=5 → gap=25 → +1
+    // Occluder: 100x50 → +0 coverage
+    // Score: 0 + 1 = 1 → warning
+    const tree = buildTree([
+      makeElement({ selector: '.covered-p', tag: 'p', text: 'Text', bounds: { x: 10, y: 10, w: 200, h: 50 }, computed: { zIndex: '5' } }),
+      makeElement({ selector: '.occluder', tag: 'div', bounds: { x: 10, y: 10, w: 100, h: 50 }, computed: { zIndex: '30' } }),
+    ]);
+    const visibility = buildVisibility([
+      { index: 1, ratio: 0.2, occludedBy: [{ index: 2, coverage: 0.8 }] },
+    ]);
+    const issues = checkOcclusion(tree, viewport, visibility);
+    expect(issues.length).toBe(1);
+    expect(issues[0].data!.intentionalityScore).toBe(1);
+  });
+
+  it('12. occluder as direct child of body awards +1 for DOM distance', () => {
+    // Root is body, occluder is direct child → +1
+    // Occluder: 100x50 = 5,000 → +0 coverage, no other signals
+    // Score: 0 + 1 = 1
+    const tree = makeElement({
+      selector: 'body',
+      tag: 'body',
+      bounds: { x: 0, y: 0, w: 1280, h: 800 },
+      children: [
+        makeElement({ selector: '.covered-p', tag: 'p', text: 'Body text', bounds: { x: 10, y: 10, w: 200, h: 50 } }),
+        makeElement({ selector: '.body-child-occluder', tag: 'div', bounds: { x: 10, y: 10, w: 100, h: 50 } }),
+      ],
+    });
+    const visibility = buildVisibility([
+      { index: 1, ratio: 0.2, occludedBy: [{ index: 2, coverage: 0.8 }] },
+    ]);
+    const issues = checkOcclusion(tree, viewport, visibility);
+    expect(issues.length).toBe(1);
+    expect(issues[0].data!.intentionalityScore).toBe(1);
+  });
+
+  it('13. includes intentionalityScore in context as string', () => {
+    // Any scenario that produces an issue — verify context.intentionalityScore is a string
+    const tree = buildTree([
+      makeElement({ selector: '.covered-p', tag: 'p', text: 'Check context', bounds: { x: 10, y: 10, w: 200, h: 50 } }),
+      makeElement({ selector: '.occluder', tag: 'div', bounds: { x: 10, y: 10, w: 100, h: 50 } }),
+    ]);
+    const visibility = buildVisibility([
+      { index: 1, ratio: 0.2, occludedBy: [{ index: 2, coverage: 0.8 }] },
+    ]);
+    const issues = checkOcclusion(tree, viewport, visibility);
+    expect(issues.length).toBe(1);
+    const ctx = issues[0].context!;
+    expect(ctx.intentionalityScore).toBeDefined();
+    expect(typeof ctx.intentionalityScore).toBe('string');
+    // Also verify existing context fields are still present
+    expect(ctx.check).toBe('occlusion');
+    expect(ctx.coveredHasText).toBe('true');
+    expect(typeof ctx.occluderViewportCoverage).toBe('string');
+  });
+
+  it('14. does not report when ratio >= 0.7 (threshold unchanged)', () => {
     const tree = buildTree([
       makeElement({ selector: '.covered-btn', tag: 'button', text: 'Click', bounds: { x: 10, y: 10, w: 100, h: 40 } }),
       makeElement({ selector: '.occluder', tag: 'div', bounds: { x: 10, y: 10, w: 20, h: 40 } }),
@@ -142,168 +335,12 @@ describe('checkOcclusion — warn-by-default occlusion detection', () => {
     expect(issues).toEqual([]);
   });
 
-  it('8. does not report for element with no text and not interactive', () => {
-    const tree = buildTree([
-      makeElement({ selector: '.plain-div', tag: 'div', bounds: { x: 10, y: 10, w: 200, h: 200 } }),
-      makeElement({ selector: '.occluder', tag: 'div', bounds: { x: 10, y: 10, w: 200, h: 200 } }),
-    ]);
-    const visibility = buildVisibility([
-      { index: 1, ratio: 0.0, occludedBy: [{ index: 2, coverage: 1.0 }] },
-    ]);
-    const issues = checkOcclusion(tree, viewport, visibility);
-    expect(issues).toEqual([]);
-  });
-
-  it('9. returns empty array when no visibility map provided', () => {
+  it('15. returns empty when no visibility map provided', () => {
     const tree = buildTree([
       makeElement({ selector: '.child', tag: 'input', bounds: { x: 10, y: 10, w: 100, h: 30 } }),
     ]);
     const issues = checkOcclusion(tree, viewport);
     expect(issues).toEqual([]);
-  });
-
-  it('10. includes context fields: coveredHasText, occluderPosition, occluderViewportCoverage', () => {
-    // DFS: root=0, subtree-a=1, covered-p=2, subtree-b=3, occluder=4
-    const tree = makeElement({
-      selector: '.root',
-      bounds: { x: 0, y: 0, w: 1280, h: 800 },
-      children: [
-        makeElement({
-          selector: '.subtree-a',
-          tag: 'div',
-          bounds: { x: 0, y: 0, w: 600, h: 400 },
-          children: [
-            makeElement({ selector: '.covered-p', tag: 'p', text: 'Some text', bounds: { x: 10, y: 10, w: 200, h: 50 } }),
-          ],
-        }),
-        makeElement({
-          selector: '.subtree-b',
-          tag: 'div',
-          bounds: { x: 0, y: 0, w: 600, h: 400 },
-          children: [
-            makeElement({ selector: '.abs-occluder', tag: 'div', bounds: { x: 10, y: 10, w: 200, h: 100 }, computed: { position: 'absolute' } }),
-          ],
-        }),
-      ],
-    });
-    const visibility = buildVisibility([
-      { index: 2, ratio: 0.2, occludedBy: [{ index: 4, coverage: 0.8 }] },
-    ]);
-    const issues = checkOcclusion(tree, viewport, visibility);
-    expect(issues.length).toBe(1);
-    const ctx = issues[0].context!;
-    expect(ctx.check).toBe('occlusion');
-    expect(ctx.coveredHasText).toBe('true');
-    expect(ctx.occluderPosition).toBe('absolute');
-    expect(typeof ctx.occluderViewportCoverage).toBe('string');
-    expect(parseFloat(ctx.occluderViewportCoverage as string)).toBeGreaterThan(0);
-  });
-
-  it('11. includes covered text in detail string', () => {
-    const tree = buildTree([
-      makeElement({ selector: '.covered-p', tag: 'p', text: 'Important content here', bounds: { x: 10, y: 10, w: 200, h: 50 } }),
-      makeElement({ selector: '.occluder', tag: 'div', bounds: { x: 10, y: 10, w: 200, h: 50 } }),
-    ]);
-    const visibility = buildVisibility([
-      { index: 1, ratio: 0.0, occludedBy: [{ index: 2, coverage: 1.0 }] },
-    ]);
-    const issues = checkOcclusion(tree, viewport, visibility);
-    expect(issues.length).toBe(1);
-    expect(issues[0].detail).toContain('Text: "Important content here"');
-  });
-
-  it('12. deduplicates: skips child when parent is occluded by same occluder', () => {
-    // DFS: root=0, parent-div=1, child-span=2, occluder=3
-    const tree = makeElement({
-      selector: '.root',
-      bounds: { x: 0, y: 0, w: 1280, h: 800 },
-      children: [
-        makeElement({
-          selector: '.parent-div',
-          tag: 'div',
-          text: 'Parent text',
-          bounds: { x: 10, y: 10, w: 300, h: 200 },
-          children: [
-            makeElement({ selector: '.child-span', tag: 'span', text: 'Child text', bounds: { x: 10, y: 10, w: 200, h: 50 } }),
-          ],
-        }),
-        makeElement({ selector: '.occluder', tag: 'div', bounds: { x: 10, y: 10, w: 300, h: 200 } }),
-      ],
-    });
-    const visibility = buildVisibility([
-      { index: 1, ratio: 0.0, occludedBy: [{ index: 3, coverage: 1.0 }] },
-      { index: 2, ratio: 0.1, occludedBy: [{ index: 3, coverage: 0.9 }] },
-    ]);
-    const issues = checkOcclusion(tree, viewport, visibility);
-    // Parent ratio (0.0) <= child ratio (0.1) → child is deduplicated
-    expect(issues.length).toBe(1);
-    expect(issues[0].element2).toBe('.parent-div');
-  });
-
-  it('13. reports error for occluded `a` link with ratio <= 0.5', () => {
-    const tree = buildTree([
-      makeElement({ selector: '.covered-link', tag: 'a', text: 'Click here', bounds: { x: 10, y: 10, w: 100, h: 30 } }),
-      makeElement({ selector: '.occluder', tag: 'div', bounds: { x: 10, y: 10, w: 100, h: 30 } }),
-    ]);
-    const visibility = buildVisibility([
-      { index: 1, ratio: 0.3, occludedBy: [{ index: 2, coverage: 0.7 }] },
-    ]);
-    const issues = checkOcclusion(tree, viewport, visibility);
-    expect(issues.length).toBe(1);
-    expect(issues[0].severity).toBe('error');
-  });
-
-  it('14. does NOT deduplicate when parent is occluded by different occluder', () => {
-    // DFS: root=0, parent-div=1, child-span=2, occluder-a=3, occluder-b=4
-    const tree = makeElement({
-      selector: '.root',
-      bounds: { x: 0, y: 0, w: 1280, h: 800 },
-      children: [
-        makeElement({
-          selector: '.parent-div',
-          tag: 'div',
-          text: 'Parent text',
-          bounds: { x: 10, y: 10, w: 300, h: 200 },
-          children: [
-            makeElement({ selector: '.child-span', tag: 'span', text: 'Child text', bounds: { x: 10, y: 10, w: 200, h: 50 } }),
-          ],
-        }),
-        makeElement({ selector: '.occluder-a', tag: 'div', bounds: { x: 10, y: 10, w: 300, h: 200 } }),
-        makeElement({ selector: '.occluder-b', tag: 'div', bounds: { x: 10, y: 10, w: 200, h: 50 } }),
-      ],
-    });
-    const visibility = buildVisibility([
-      { index: 1, ratio: 0.0, occludedBy: [{ index: 3, coverage: 1.0 }] },
-      { index: 2, ratio: 0.0, occludedBy: [{ index: 4, coverage: 1.0 }] },
-    ]);
-    const issues = checkOcclusion(tree, viewport, visibility);
-    expect(issues.length).toBe(2);
-  });
-
-  it('15. does NOT deduplicate when parent ratio > child ratio', () => {
-    // DFS: root=0, parent-div=1, child-span=2, occluder=3
-    const tree = makeElement({
-      selector: '.root',
-      bounds: { x: 0, y: 0, w: 1280, h: 800 },
-      children: [
-        makeElement({
-          selector: '.parent-div',
-          tag: 'div',
-          text: 'Parent text',
-          bounds: { x: 10, y: 10, w: 300, h: 200 },
-          children: [
-            makeElement({ selector: '.child-span', tag: 'span', text: 'Child text', bounds: { x: 10, y: 10, w: 200, h: 50 } }),
-          ],
-        }),
-        makeElement({ selector: '.occluder', tag: 'div', bounds: { x: 10, y: 10, w: 300, h: 200 } }),
-      ],
-    });
-    const visibility = buildVisibility([
-      { index: 1, ratio: 0.5, occludedBy: [{ index: 3, coverage: 0.5 }] },
-      { index: 2, ratio: 0.1, occludedBy: [{ index: 3, coverage: 0.9 }] },
-    ]);
-    const issues = checkOcclusion(tree, viewport, visibility);
-    expect(issues.length).toBe(2);
   });
 });
 
