@@ -66,6 +66,11 @@ export function checkOcclusion(
   const elements = flattenDFS(tree);
   const parentMap = buildParentMap(tree);
   const issues: Issue[] = [];
+  const vpArea = viewport.width * viewport.height;
+
+  // Build element→index reverse map for parent-child dedup
+  const elementToIndex = new Map<ExtractedElement, number>();
+  elements.forEach((el, i) => elementToIndex.set(el, i));
 
   for (const [coveredIndex, entry] of visibility) {
     if (entry.ratio >= 0.7) continue;
@@ -73,62 +78,55 @@ export function checkOcclusion(
     const coveredEl = elements[coveredIndex];
     if (!coveredEl) continue;
 
-    const tier = classifyElement(coveredEl);
-    if (tier === 'decorative') continue;
+    // Gate: only report elements with text or interactive role
+    const hasText = hasTextRecursive(coveredEl);
+    const isInteractive = INTERACTIVE_TAGS.has(coveredEl.tag) ||
+      (coveredEl.attributes?.role !== undefined && INTERACTIVE_ROLES.has(coveredEl.attributes.role));
+    if (!hasText && !isInteractive) continue;
 
     for (const occluder of entry.occludedBy) {
       const occluderEl = elements[occluder.index];
       if (!occluderEl) continue;
 
-      // Sibling dedup: same parent + interactive functional covered → skip
-      // Interactive functional elements (button, a) overlapping siblings is usually intentional
-      const coveredParent = parentMap.get(coveredEl) ?? null;
-      const occluderParent = parentMap.get(occluderEl) ?? null;
-      if (coveredParent && occluderParent && coveredParent === occluderParent) {
-        const isInteractive = INTERACTIVE_TAGS.has(coveredEl.tag) ||
-          (coveredEl.attributes?.role !== undefined && INTERACTIVE_ROLES.has(coveredEl.attributes.role));
-        if (isInteractive && tier !== 'critical') continue;
+      // Parent-child dedup: skip child when parent is occluded by same occluder with parent ratio <= child ratio
+      const parent = parentMap.get(coveredEl);
+      if (parent) {
+        const parentIdx = elementToIndex.get(parent);
+        if (parentIdx !== undefined && visibility.has(parentIdx)) {
+          const parentEntry = visibility.get(parentIdx)!;
+          const parentOccludedBySame = parentEntry.occludedBy.some(o => o.index === occluder.index);
+          if (parentOccludedBySame && parentEntry.ratio <= entry.ratio) continue;
+        }
       }
 
-      // Intentional overlay skips
-      const occluderArea = occluderEl.bounds.w * occluderEl.bounds.h;
-      const vpArea = viewport.width * viewport.height;
-      if (occluderEl.computed?.position === 'fixed' && occluderArea >= vpArea * 0.5) continue;
-      if (occluderEl.tag === 'dialog') continue;
-      if (occluderEl.attributes?.role === 'dialog') continue;
-
-      const opacity = occluderEl.computed?.opacity;
-      if (opacity === '0') continue;
-
-      // Determine severity
-      let severity: 'error' | 'warning';
-      const opacityNum = opacity !== undefined ? parseFloat(opacity) : 1;
-      if (opacityNum > 0 && opacityNum < 0.5) {
-        severity = 'warning';
-      } else if (entry.ratio <= 0.3) {
-        severity = 'error';
-      } else if (tier === 'critical') {
-        severity = 'error';
-      } else {
-        severity = 'warning';
-      }
+      // Severity: interactive control occluded >50% = error, else warning
+      const isSubmit = coveredEl.tag === 'button' && coveredEl.attributes?.type === 'submit';
+      const isCriticalInteractive =
+        ['input', 'select', 'textarea'].includes(coveredEl.tag) || isSubmit || coveredEl.tag === 'a';
+      const severity: 'error' | 'warning' = (isCriticalInteractive && entry.ratio <= 0.5) ? 'error' : 'warning';
 
       const occludedPercent = Math.round((1 - entry.ratio) * 100);
+      const coveredText = coveredEl.text?.trim().slice(0, 40) || '';
+      const textInfo = coveredText ? ` Text: "${coveredText}"` : '';
+
+      const occluderArea = occluderEl.bounds.w * occluderEl.bounds.h;
 
       issues.push({
         type: 'occlusion',
         severity,
         element: occluderEl.selector,
         element2: coveredEl.selector,
-        detail: `${occluderEl.selector} covers ${coveredEl.selector} (${occludedPercent}% occluded, visibility ratio ${entry.ratio})`,
+        detail: `${occluderEl.selector} covers ${coveredEl.selector} (${occludedPercent}% occluded).${textInfo}`,
         data: {
           visibilityRatio: entry.ratio,
           occludedPercent,
-          isCritical: tier === 'critical',
+          isCritical: isCriticalInteractive,
         },
         context: {
-          semanticTier: tier,
           check: 'occlusion',
+          coveredHasText: String(hasText),
+          occluderPosition: occluderEl.computed?.position ?? 'static',
+          occluderViewportCoverage: String(Math.round(occluderArea / vpArea * 100)),
         },
       });
     }
