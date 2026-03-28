@@ -11,8 +11,8 @@ import type { ExtractedElement, Issue, IssueSeverity, Viewport } from '../types.
  * Clipping-ancestor context (FOLLOWUP-001 Change 2):
  *   If an overflowing element has an ancestor with overflow:hidden/scroll/auto,
  *   it is visually clipped — downgrade to warning and include context.clippedBy.
- *   If the clipping ancestor itself also overflows the viewport, the overflow
- *   may still be partially visible — keep severity as error but include context.
+ *   The clipping ancestor clips the child regardless of the ancestor's own
+ *   position relative to the viewport, so severity is always warning.
  *
  * See HLD §3.5.1 for full specification.
  */
@@ -44,12 +44,6 @@ function isClippingElement(el: ExtractedElement): boolean {
   );
 }
 
-/** Check if the clipping ancestor fully contains the viewport on the relevant axis */
-function ancestorContainsViewport(ancestor: ExtractedElement, viewport: Viewport): boolean {
-  const ancestorRight = ancestor.bounds.x + ancestor.bounds.w;
-  return ancestorRight <= viewport.width && ancestor.bounds.x >= 0;
-}
-
 function walk(
   el: ExtractedElement,
   viewport: Viewport,
@@ -65,8 +59,7 @@ function walk(
   if (!insideSvg && rightEdge > viewport.width) {
     const overflowX = rightEdge - viewport.width;
     if (clippingAncestor) {
-      const clippedWithinViewport = ancestorContainsViewport(clippingAncestor, viewport);
-      const severity: IssueSeverity = clippedWithinViewport ? 'warning' : 'error';
+      const severity: IssueSeverity = 'warning';
       issues.push({
         type: 'viewport-overflow',
         severity,
@@ -90,8 +83,7 @@ function walk(
 
   if (!insideSvg && el.bounds.x < 0) {
     if (clippingAncestor) {
-      const clippedWithinViewport = ancestorContainsViewport(clippingAncestor, viewport);
-      const severity: IssueSeverity = clippedWithinViewport ? 'warning' : 'error';
+      const severity: IssueSeverity = 'warning';
       issues.push({
         type: 'viewport-overflow',
         severity,
