@@ -240,7 +240,7 @@ describe('occlusion pipeline (integration)', () => {
     expect(occlusions.length).toBeGreaterThan(0);
   }, 30000);
 
-  it('panel covering text produces type occlusion with severity error', async () => {
+  it('panel covering text produces type occlusion with severity warning', async () => {
     const { report } = await check({
       file: resolve(FIXTURES, 'occlusion.html'),
       keepAlive: 0,
@@ -248,17 +248,17 @@ describe('occlusion pipeline (integration)', () => {
 
     const occlusions = report.issues.filter((i) => i.type === 'occlusion');
 
-    // #covering-panel fully covers #covered-text — should be error
+    // #covering-panel fully covers #covered-text — warning (text element, not interactive control)
     const panelIssue = occlusions.find(
       (i) =>
         (i.element?.includes('covering-panel') && i.element2?.includes('covered-text')) ||
         (i.element?.includes('covered-text') && i.element2?.includes('covering-panel')),
     );
     expect(panelIssue).toBeDefined();
-    expect(panelIssue!.severity).toBe('error');
+    expect(panelIssue!.severity).toBe('warning');
   }, 30000);
 
-  it('full-viewport modal backdrop does NOT produce occlusion issue', async () => {
+  it('full-viewport modal backdrop produces warning with viewport coverage context', async () => {
     const { report } = await check({
       file: resolve(FIXTURES, 'occlusion.html'),
       keepAlive: 0,
@@ -266,12 +266,15 @@ describe('occlusion pipeline (integration)', () => {
 
     const occlusions = report.issues.filter((i) => i.type === 'occlusion');
 
-    // modal-backdrop is position:fixed covering >=50% viewport — intentional overlay
+    // modal-backdrop now reported as warning (no more intentional overlay filtering)
+    // Agent decides whether to ignore based on occluderViewportCoverage context
     const modalIssue = occlusions.find(
       (i) =>
         i.element?.includes('modal-backdrop') || i.element2?.includes('modal-backdrop'),
     );
-    expect(modalIssue).toBeUndefined();
+    expect(modalIssue).toBeDefined();
+    expect(modalIssue!.severity).toBe('warning');
+    expect(modalIssue!.context?.occluderViewportCoverage).toBeDefined();
   }, 30000);
 
   it('semi-transparent overlay produces type occlusion with severity warning', async () => {
