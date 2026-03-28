@@ -1,113 +1,186 @@
-import type { ExtractedElement, Issue, Viewport } from '../types.js';
+import type { ExtractedElement, Issue, Viewport, Bounds, VisibilityMap } from '../types.js';
+import { classifyElement } from './severity-resolver.js';
 
-function hasTextInSubtree(el: ExtractedElement): boolean {
+// ── Helpers ──
+
+function flattenDFS(tree: ExtractedElement): ExtractedElement[] {
+  const result: ExtractedElement[] = [];
+  function walk(el: ExtractedElement): void {
+    result.push(el);
+    for (const child of el.children) walk(child);
+  }
+  walk(tree);
+  return result;
+}
+
+function buildParentMap(tree: ExtractedElement): Map<ExtractedElement, ExtractedElement | null> {
+  const map = new Map<ExtractedElement, ExtractedElement | null>();
+  map.set(tree, null);
+  function walk(el: ExtractedElement): void {
+    for (const child of el.children) {
+      map.set(child, el);
+      walk(child);
+    }
+  }
+  walk(tree);
+  return map;
+}
+
+function hasTextRecursive(el: ExtractedElement): boolean {
   if (el.text?.trim().length) return true;
   for (const child of el.children) {
-    if (hasTextInSubtree(child)) return true;
+    if (hasTextRecursive(child)) return true;
   }
   return false;
 }
 
-function getZIndex(el: ExtractedElement): number {
-  const z = el.computed?.['z-index'] ?? el.computed?.zIndex;
-  if (z === undefined || z === 'auto') return 0;
-  const n = parseInt(z, 10);
-  return isNaN(n) ? 0 : n;
+const INTERACTIVE_TAGS = new Set(['input', 'select', 'textarea', 'button', 'a']);
+const INTERACTIVE_ROLES = new Set([
+  'button', 'link', 'textbox', 'checkbox', 'radio',
+  'combobox', 'listbox', 'slider', 'switch', 'tab',
+]);
+const MEDIA_TAGS = new Set(['img', 'video', 'canvas']);
+
+function isInsideSVG(index: number, elements: ExtractedElement[], parentMap: Map<ExtractedElement, ExtractedElement | null>): boolean {
+  let el: ExtractedElement | null | undefined = elements[index];
+  while (el) {
+    if (el.tag === 'svg') return true;
+    el = parentMap.get(el) ?? null;
+  }
+  return false;
 }
 
-export function checkOcclusion(tree: ExtractedElement, viewport: Viewport): Issue[] {
+function isOutsideViewport(b: Bounds, vp: Viewport): boolean {
+  return b.x + b.w < 0 || b.x > vp.width || b.y + b.h < 0 || b.y > vp.height;
+}
+
+// ── checkOcclusion ──
+
+export function checkOcclusion(
+  tree: ExtractedElement,
+  viewport: Viewport,
+  visibility?: VisibilityMap,
+): Issue[] {
+  if (!visibility || visibility.size === 0) return [];
+
+  const elements = flattenDFS(tree);
+  const parentMap = buildParentMap(tree);
   const issues: Issue[] = [];
-  const elements: ExtractedElement[] = [];
-  const parentPaths = new Map<ExtractedElement, ExtractedElement[]>();
-  const domOrder = new Map<ExtractedElement, number>();
-  let order = 0;
 
-  function flatten(el: ExtractedElement, path: ExtractedElement[]): void {
-    domOrder.set(el, order++);
-    if (el.bounds.w * el.bounds.h > 100) {
-      elements.push(el);
-      parentPaths.set(el, [...path]);
-    }
-    for (const child of el.children) {
-      flatten(child, [...path, el]);
-    }
-  }
-  flatten(tree, []);
+  for (const [coveredIndex, entry] of visibility) {
+    if (entry.ratio >= 0.7) continue;
 
-  for (let i = 0; i < elements.length; i++) {
-    for (let j = i + 1; j < elements.length; j++) {
-      const a = elements[i];
-      const b = elements[j];
+    const coveredEl = elements[coveredIndex];
+    if (!coveredEl) continue;
 
-      // AABB overlap
-      const overlapX = Math.max(0,
-        Math.min(a.bounds.x + a.bounds.w, b.bounds.x + b.bounds.w) -
-        Math.max(a.bounds.x, b.bounds.x));
-      const overlapY = Math.max(0,
-        Math.min(a.bounds.y + a.bounds.h, b.bounds.y + b.bounds.h) -
-        Math.max(a.bounds.y, b.bounds.y));
-      if (overlapX <= 0 || overlapY <= 0) continue;
+    const tier = classifyElement(coveredEl);
+    if (tier === 'decorative') continue;
 
-      const overlapArea = overlapX * overlapY;
-      const smallerArea = Math.min(
-        a.bounds.w * a.bounds.h,
-        b.bounds.w * b.bounds.h);
-      if (overlapArea / smallerArea < 0.5) continue;
+    for (const occluder of entry.occludedBy) {
+      const occluderEl = elements[occluder.index];
+      if (!occluderEl) continue;
 
-      // Skip ancestor-descendant
-      const pathA = parentPaths.get(a) ?? [];
-      const pathB = parentPaths.get(b) ?? [];
-      if (pathA.includes(b) || pathB.includes(a)) continue;
-
-      // Skip direct siblings (handled by sibling-overlap)
-      const parentA = pathA[pathA.length - 1];
-      const parentB = pathB[pathB.length - 1];
-      if (parentA !== undefined && parentA === parentB) continue;
-
-      // Skip when one is a descendant of a sibling of the other
-      // (e.g., .panel-a is child of .subtree-a which is sibling of .subtree-b)
-      if (parentB !== undefined && pathA.includes(parentB)) continue;
-      if (parentA !== undefined && pathB.includes(parentA)) continue;
-
-      // Determine top element by z-index, fall back to DOM order
-      const zA = getZIndex(a);
-      const zB = getZIndex(b);
-      let topEl: ExtractedElement;
-      let bottomEl: ExtractedElement;
-      if (zA !== zB) {
-        topEl = zA > zB ? a : b;
-        bottomEl = zA > zB ? b : a;
-      } else {
-        // Later in DOM order = on top
-        const orderA = domOrder.get(a) ?? 0;
-        const orderB = domOrder.get(b) ?? 0;
-        topEl = orderB > orderA ? b : a;
-        bottomEl = orderB > orderA ? a : b;
+      // Sibling dedup: same parent + interactive functional covered → skip
+      // Interactive functional elements (button, a) overlapping siblings is usually intentional
+      const coveredParent = parentMap.get(coveredEl) ?? null;
+      const occluderParent = parentMap.get(occluderEl) ?? null;
+      if (coveredParent && occluderParent && coveredParent === occluderParent) {
+        const isInteractive = INTERACTIVE_TAGS.has(coveredEl.tag) ||
+          (coveredEl.attributes?.role !== undefined && INTERACTIVE_ROLES.has(coveredEl.attributes.role));
+        if (isInteractive && tier !== 'critical') continue;
       }
 
-      // Skip when covered element is much larger than covering element
-      // A small element can't meaningfully occlude a large container — it only covers a tiny fraction
-      const coveringArea = topEl.bounds.w * topEl.bounds.h;
-      const coveredArea = bottomEl.bounds.w * bottomEl.bounds.h;
-      if (coveredArea > coveringArea * 4) continue;
-
-      // Skip when covering element is a full-viewport fixed overlay (modal/backdrop)
-      // These intentionally cover everything — not real occlusion
+      // Intentional overlay skips
+      const occluderArea = occluderEl.bounds.w * occluderEl.bounds.h;
       const vpArea = viewport.width * viewport.height;
-      if (topEl.computed?.position === 'fixed' && coveringArea >= vpArea * 0.5) continue;
+      if (occluderEl.computed?.position === 'fixed' && occluderArea >= vpArea * 0.5) continue;
+      if (occluderEl.tag === 'dialog') continue;
+      if (occluderEl.attributes?.role === 'dialog') continue;
 
-      // Only flag if bottom element has text
-      if (!hasTextInSubtree(bottomEl)) continue;
+      const opacity = occluderEl.computed?.opacity;
+      if (opacity === '0') continue;
+
+      // Determine severity
+      let severity: 'error' | 'warning';
+      const opacityNum = opacity !== undefined ? parseFloat(opacity) : 1;
+      if (opacityNum > 0 && opacityNum < 0.5) {
+        severity = 'warning';
+      } else if (entry.ratio <= 0.3) {
+        severity = 'error';
+      } else if (tier === 'critical') {
+        severity = 'error';
+      } else {
+        severity = 'warning';
+      }
+
+      const occludedPercent = Math.round((1 - entry.ratio) * 100);
 
       issues.push({
         type: 'occlusion',
-        severity: 'error',
-        element: topEl.selector,
-        element2: bottomEl.selector,
-        detail: `Covers ${bottomEl.selector} by ${overlapX}x${overlapY}px (${Math.round(overlapArea / smallerArea * 100)}% of smaller element). Covered element contains text that may be unreadable.`,
-        data: { overlapX, overlapY, overlapArea },
+        severity,
+        element: occluderEl.selector,
+        element2: coveredEl.selector,
+        detail: `${occluderEl.selector} covers ${coveredEl.selector} (${occludedPercent}% occluded, visibility ratio ${entry.ratio})`,
+        data: {
+          visibilityRatio: entry.ratio,
+          occludedPercent,
+          isCritical: tier === 'critical',
+        },
+        context: {
+          semanticTier: tier,
+          check: 'occlusion',
+        },
       });
     }
   }
+
   return issues;
+}
+
+// ── collectProbeTargets ──
+
+export function collectProbeTargets(
+  tree: ExtractedElement,
+  viewport: Viewport,
+): Array<{ index: number; bounds: Bounds }> {
+  const elements = flattenDFS(tree);
+  const parentMap = buildParentMap(tree);
+
+  const critical: Array<{ index: number; bounds: Bounds }> = [];
+  const functional: Array<{ index: number; bounds: Bounds }> = [];
+
+  for (let i = 0; i < elements.length; i++) {
+    const el = elements[i];
+
+    // Skip SVG subtrees
+    if (isInsideSVG(i, elements, parentMap)) continue;
+
+    // Skip outside viewport
+    if (isOutsideViewport(el.bounds, viewport)) continue;
+
+    // Determine if target qualifies
+    const hasText = hasTextRecursive(el);
+    const isInteractive = INTERACTIVE_TAGS.has(el.tag) ||
+      (el.attributes?.role !== undefined && INTERACTIVE_ROLES.has(el.attributes.role));
+    const isMedia = MEDIA_TAGS.has(el.tag) && el.bounds.w * el.bounds.h > 0;
+
+    if (!hasText && !isInteractive && !isMedia) continue;
+
+    const tier = classifyElement(el);
+    const entry = { index: i, bounds: el.bounds };
+
+    if (tier === 'critical') {
+      critical.push(entry);
+    } else {
+      functional.push(entry);
+    }
+  }
+
+  // Cap at 200: all critical first, then functional
+  if (critical.length + functional.length <= 200) {
+    return [...critical, ...functional];
+  }
+
+  const remaining = 200 - critical.length;
+  return [...critical, ...functional.slice(0, Math.max(0, remaining))];
 }

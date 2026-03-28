@@ -118,6 +118,23 @@ export interface AnnotatedIssue {
   data?: Record<string, number | boolean>;
 }
 
+// ── Visibility / Occlusion ──
+
+/** Visibility sampling result for a single element */
+export interface ElementVisibility {
+  /** 0.0 (fully occluded) to 1.0 (fully visible) */
+  ratio: number;
+  /** Elements covering this one, sorted by coverage descending */
+  occludedBy: Array<{
+    index: number;
+    /** Fraction of sample points where this element is the topmost occluder */
+    coverage: number;
+  }>;
+}
+
+/** Full visibility map from extraction — keyed by DFS traversal index */
+export type VisibilityMap = Map<number, ElementVisibility>;
+
 // ── Browser Adapter ──
 
 export interface BrowserAdapter {

@@ -9,7 +9,6 @@ import { checkViewportFit } from './viewport-fit.js';
 import { checkContentDuplicate } from './content-duplicate.js';
 import { checkStacking } from './stacking.js';
 import { checkSemantic } from './semantic.js';
-// import { checkOcclusion } from './occlusion.js'; // Disabled — needs better algorithm (see FOLLOWUP-007 research)
 
 /** Default diagnostic suite -- all Phase 1 checks. */
 const DEFAULT_DIAGNOSTICS: DiagnosticFn[] = [
