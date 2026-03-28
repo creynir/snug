@@ -582,6 +582,109 @@ describe('checkViewportOverflow', () => {
       expect(issue!.context).toBeDefined();
       expect(issue!.context!.clippedBy).toBe('.inner-clip');
     });
+
+    // ── FOLLOWUP-010: clipping ancestor straddling viewport edge ──
+
+    it('downgrades to warning when clipping ancestor straddles viewport right edge', () => {
+      const tree = makeElement({
+        selector: 'body',
+        children: [
+          makeElement({
+            selector: '.clipping-straddle-right',
+            bounds: { x: 1000, y: 0, w: 400, h: 200 }, // right edge at 1400, past viewport 1280
+            computed: { overflow: 'hidden' },
+            children: [
+              makeElement({
+                selector: '.child-right',
+                bounds: { x: 1000, y: 0, w: 500, h: 200 }, // overflows viewport
+              }),
+            ],
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      const issue = issues.find(i => i.element === '.child-right');
+      expect(issue).toBeDefined();
+      expect(issue!.severity).toBe('warning');
+      expect(issue!.context).toBeDefined();
+      expect(issue!.context!.clippedBy).toBe('.clipping-straddle-right');
+    });
+
+    it('downgrades to warning when clipping ancestor straddles viewport left edge', () => {
+      const tree = makeElement({
+        selector: 'body',
+        children: [
+          makeElement({
+            selector: '.clipping-straddle-left',
+            bounds: { x: -100, y: 0, w: 600, h: 200 }, // starts before viewport
+            computed: { overflow: 'hidden' },
+            children: [
+              makeElement({
+                selector: '.child-left',
+                bounds: { x: -50, y: 0, w: 300, h: 200 }, // overflows left
+              }),
+            ],
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      const issue = issues.find(i => i.element === '.child-left');
+      expect(issue).toBeDefined();
+      expect(issue!.severity).toBe('warning');
+      expect(issue!.context).toBeDefined();
+      expect(issue!.context!.clippedBy).toBe('.clipping-straddle-left');
+    });
+
+    it('clipping ancestor straddles viewport — ancestor error, child warning', () => {
+      const tree = makeElement({
+        selector: 'body',
+        children: [
+          makeElement({
+            selector: '.straddle-ancestor',
+            bounds: { x: 1000, y: 0, w: 400, h: 200 }, // overflows viewport itself (right edge 1400)
+            computed: { overflow: 'hidden' },
+            children: [
+              makeElement({
+                selector: '.straddle-child',
+                bounds: { x: 1000, y: 0, w: 500, h: 200 }, // also overflows viewport
+              }),
+            ],
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      const ancestorIssue = issues.find(i => i.element === '.straddle-ancestor');
+      expect(ancestorIssue).toBeDefined();
+      expect(ancestorIssue!.severity).toBe('error'); // no clipping ancestor of its own
+      const childIssue = issues.find(i => i.element === '.straddle-child');
+      expect(childIssue).toBeDefined();
+      expect(childIssue!.severity).toBe('warning'); // has clipping ancestor
+    });
+
+    it('downgrades to warning with overflow:auto when ancestor straddles viewport', () => {
+      const tree = makeElement({
+        selector: 'body',
+        children: [
+          makeElement({
+            selector: '.auto-straddle',
+            bounds: { x: 1000, y: 0, w: 400, h: 200 }, // right edge at 1400, past viewport
+            computed: { overflow: 'auto' },
+            children: [
+              makeElement({
+                selector: '.auto-straddle-child',
+                bounds: { x: 1000, y: 0, w: 500, h: 200 },
+              }),
+            ],
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      const issue = issues.find(i => i.element === '.auto-straddle-child');
+      expect(issue).toBeDefined();
+      expect(issue!.severity).toBe('warning');
+      expect(issue!.context).toBeDefined();
+      expect(issue!.context!.clippedBy).toBe('.auto-straddle');
+    });
   });
 
   // ── Off-screen parent suppression ──
