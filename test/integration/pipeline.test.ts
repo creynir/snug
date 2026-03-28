@@ -75,7 +75,8 @@ describe('full pipeline (integration)', () => {
       (i) => i.type === 'viewport-overflow',
     );
     expect(overflows.length).toBeGreaterThan(0);
-    expect(overflows.every((i) => i.severity === 'error')).toBe(true);
+    // Non-clipped overflows are errors, clipped children are warnings
+    expect(overflows.some((i) => i.severity === 'error')).toBe(true);
   }, 30000);
 
   it('detects wide-banner overflow right and shifted-left overflow left', async () => {
