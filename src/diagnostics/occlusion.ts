@@ -54,6 +54,54 @@ function isOutsideViewport(b: Bounds, vp: Viewport): boolean {
   return b.x + b.w < 0 || b.x > vp.width || b.y + b.h < 0 || b.y > vp.height;
 }
 
+// ── Intentionality scoring ──
+
+function parseZ(val: string | undefined): number {
+  if (!val || val === 'auto') return 0;
+  const n = parseInt(val, 10);
+  return isNaN(n) ? 0 : n;
+}
+
+function computeIntentionalityScore(
+  occluderEl: ExtractedElement,
+  coveredEl: ExtractedElement,
+  viewport: Viewport,
+  parentMap: Map<ExtractedElement, ExtractedElement | null>,
+): number {
+  let score = 0;
+  const vpArea = viewport.width * viewport.height;
+
+  // Signal 1: Viewport coverage
+  const occluderArea = occluderEl.bounds.w * occluderEl.bounds.h;
+  const coverage = occluderArea / vpArea;
+  if (coverage >= 0.80) score += 3;
+  else if (coverage >= 0.40) score += 2;
+  else if (coverage >= 0.15) score += 1;
+
+  // Signal 2: Position fixed + full extent
+  if (occluderEl.computed?.position === 'fixed') {
+    score += 1;
+    if (occluderEl.bounds.w >= viewport.width * 0.9 && occluderEl.bounds.h >= viewport.height * 0.9) {
+      score += 2;
+    }
+  }
+
+  // Signal 3: Z-index gap
+  const occluderZ = parseZ(occluderEl.computed?.zIndex);
+  const coveredZ = parseZ(coveredEl.computed?.zIndex);
+  const zGap = Math.abs(occluderZ - coveredZ);
+  if (zGap >= 100) score += 2;
+  else if (zGap >= 10) score += 1;
+
+  // Signal 4: DOM distance — occluder is direct child of body/html
+  const occluderParent = parentMap.get(occluderEl);
+  if (occluderParent && (occluderParent.tag === 'body' || occluderParent.tag === 'html')) {
+    score += 1;
+  }
+
+  return score;
+}
+
 // ── checkOcclusion ──
 
 export function checkOcclusion(
@@ -99,17 +147,26 @@ export function checkOcclusion(
         }
       }
 
-      // Severity: interactive control occluded >50% = error, else warning
-      const isSubmit = coveredEl.tag === 'button' && coveredEl.attributes?.type === 'submit';
-      const isCriticalInteractive =
-        ['input', 'select', 'textarea'].includes(coveredEl.tag) || isSubmit || coveredEl.tag === 'a';
-      const severity: 'error' | 'warning' = (isCriticalInteractive && entry.ratio <= 0.5) ? 'error' : 'warning';
+      const occluderArea = occluderEl.bounds.w * occluderEl.bounds.h;
+      const score = computeIntentionalityScore(occluderEl, coveredEl, viewport, parentMap);
+
+      // Score >= 4: suppress entirely (definitionally intentional)
+      if (score >= 4) continue;
+
+      // Determine severity
+      let severity: 'error' | 'warning' = 'warning';
+      if (score < 2) {
+        const isSubmit = coveredEl.tag === 'button' && coveredEl.attributes?.type === 'submit';
+        const isCriticalInteractive =
+          ['input', 'select', 'textarea'].includes(coveredEl.tag) || isSubmit || coveredEl.tag === 'a';
+        if (isCriticalInteractive && entry.ratio <= 0.5) {
+          severity = 'error';
+        }
+      }
 
       const occludedPercent = Math.round((1 - entry.ratio) * 100);
       const coveredText = coveredEl.text?.trim().slice(0, 40) || '';
       const textInfo = coveredText ? ` Text: "${coveredText}"` : '';
-
-      const occluderArea = occluderEl.bounds.w * occluderEl.bounds.h;
 
       issues.push({
         type: 'occlusion',
@@ -120,13 +177,15 @@ export function checkOcclusion(
         data: {
           visibilityRatio: entry.ratio,
           occludedPercent,
-          isCritical: isCriticalInteractive,
+          intentionalityScore: score,
+          isCritical: severity === 'error',
         },
         context: {
           check: 'occlusion',
           coveredHasText: String(hasText),
           occluderPosition: occluderEl.computed?.position ?? 'static',
           occluderViewportCoverage: String(Math.round(occluderArea / vpArea * 100)),
+          intentionalityScore: String(score),
         },
       });
     }

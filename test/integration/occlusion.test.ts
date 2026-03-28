@@ -258,7 +258,7 @@ describe('occlusion pipeline (integration)', () => {
     expect(panelIssue!.severity).toBe('warning');
   }, 30000);
 
-  it('full-viewport modal backdrop produces warning with viewport coverage context', async () => {
+  it('full-viewport modal backdrop is suppressed by intentionality scoring', async () => {
     const { report } = await check({
       file: resolve(FIXTURES, 'occlusion.html'),
       keepAlive: 0,
@@ -266,15 +266,13 @@ describe('occlusion pipeline (integration)', () => {
 
     const occlusions = report.issues.filter((i) => i.type === 'occlusion');
 
-    // modal-backdrop now reported as warning (no more intentional overlay filtering)
-    // Agent decides whether to ignore based on occluderViewportCoverage context
+    // modal-backdrop: position:fixed + 100vw×100vh + z-index:1000 + body child
+    // Intentionality score ~9 (all signals maxed) → suppressed entirely
     const modalIssue = occlusions.find(
       (i) =>
         i.element?.includes('modal-backdrop') || i.element2?.includes('modal-backdrop'),
     );
-    expect(modalIssue).toBeDefined();
-    expect(modalIssue!.severity).toBe('warning');
-    expect(modalIssue!.context?.occluderViewportCoverage).toBeDefined();
+    expect(modalIssue).toBeUndefined();
   }, 30000);
 
   it('semi-transparent overlay produces type occlusion with severity warning', async () => {
