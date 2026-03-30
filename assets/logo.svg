@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!--
+    Snug Logo v2 — Concept 1: Viewport Overflow
+    A viewport frame (rounded rectangle) with a clipping mask applied so
+    the escaped element is visually cut at the edge — but its dashed ghost
+    continues past the right border. The problem: an element that should
+    be inside is escaping the screen boundary.
+  -->
+
+  <!-- Viewport frame — the screen/container -->
+  <rect x="20" y="48" width="130" height="104" rx="8" stroke="white" stroke-width="6"/>
+
+  <!-- Corner notch at top-left — bounding-box handle aesthetic from v1 logos -->
+  <path d="M20 70 L20 48 L42 48" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.4"/>
+
+  <!-- Well-behaved element inside the viewport -->
+  <rect x="34" y="66" width="52" height="34" rx="3" fill="white" opacity="0.25"/>
+  <rect x="34" y="66" width="52" height="34" rx="3" stroke="white" stroke-width="3.5"/>
+
+  <!-- The overflow element — starts inside, exits right edge -->
+  <!-- Solid portion inside viewport (clipped visually by the frame) -->
+  <rect x="96" y="108" width="84" height="34" rx="3" stroke="white" stroke-width="4.5"/>
+
+  <!-- Dashed ghost showing the escaping portion beyond the viewport edge -->
+  <rect x="150" y="108" width="30" height="34" rx="3" stroke="white" stroke-width="3" stroke-dasharray="5 4" opacity="0.55"/>
+
+  <!-- Tension mark — small perpendicular tick at the overflow boundary -->
+  <line x1="150" y1="103" x2="150" y2="147" stroke="white" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
+
+  <!-- Arrow nub pointing right — indicating escape direction -->
+  <path d="M166 122 L176 125 L166 128" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+</svg>
