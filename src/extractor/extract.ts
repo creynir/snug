@@ -92,7 +92,7 @@ function extractionScript(opts: { depth: number; includeHidden: boolean }): Extr
     'perspective',
   ]);
 
-  const SEMANTIC_ATTRS = ['src', 'href', 'role', 'alt', 'aria-label', 'type', 'id', 'aria-labelledby', 'title', 'tabindex', 'aria-hidden', 'aria-expanded', 'aria-checked', 'aria-selected', 'aria-pressed', 'for'];
+  const SEMANTIC_ATTRS = ['src', 'href', 'role', 'alt', 'aria-label', 'type', 'id', 'aria-labelledby', 'title', 'tabindex', 'aria-hidden', 'aria-expanded', 'aria-checked', 'aria-selected', 'aria-pressed', 'for', 'aria-valuenow', 'aria-valuemin', 'aria-valuemax', 'aria-orientation'];
 
   function getSemanticAttributes(el: Element): Record<string, string> | undefined {
     const result: Record<string, string> = {};
