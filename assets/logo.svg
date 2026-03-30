@@ -1,32 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="15 43 170 112" fill="none">
-  <!--
-    Snug Logo v2 — Concept 1: Viewport Overflow
-    A viewport frame (rounded rectangle) with a clipping mask applied so
-    the escaped element is visually cut at the edge — but its dashed ghost
-    continues past the right border. The problem: an element that should
-    be inside is escaping the screen boundary.
-  -->
-
-  <!-- Viewport frame — the screen/container -->
-  <rect x="20" y="48" width="130" height="104" rx="8" stroke="white" stroke-width="6"/>
-
-  <!-- Corner notch at top-left — bounding-box handle aesthetic from v1 logos -->
-  <path d="M20 70 L20 48 L42 48" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.4"/>
-
-  <!-- Well-behaved element inside the viewport -->
-  <rect x="34" y="66" width="52" height="34" rx="3" fill="white" opacity="0.25"/>
-  <rect x="34" y="66" width="52" height="34" rx="3" stroke="white" stroke-width="3.5"/>
-
-  <!-- The overflow element — starts inside, exits right edge -->
-  <!-- Solid portion inside viewport (clipped visually by the frame) -->
-  <rect x="96" y="108" width="84" height="34" rx="3" stroke="white" stroke-width="4.5"/>
-
-  <!-- Dashed ghost showing the escaping portion beyond the viewport edge -->
-  <rect x="150" y="108" width="30" height="34" rx="3" stroke="white" stroke-width="3" stroke-dasharray="5 4" opacity="0.55"/>
-
-  <!-- Tension mark — small perpendicular tick at the overflow boundary -->
-  <line x1="150" y1="103" x2="150" y2="147" stroke="white" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
-
-  <!-- Arrow nub pointing right — indicating escape direction -->
-  <path d="M166 122 L176 125 L166 128" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 44" fill="none">
+  <!-- Screen at 16:10 with a magnifying glass inspecting the crack -->
+  <!-- Top edge -->
+  <line x1="4" y1="4" x2="68" y2="4" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Left edge -->
+  <line x1="4" y1="4" x2="4" y2="40" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Right edge -->
+  <line x1="68" y1="4" x2="68" y2="40" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Bottom edge — split with a gap -->
+  <line x1="4" y1="40" x2="28" y2="40" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="44" y1="40" x2="68" y2="40" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Crack in the gap -->
+  <path d="M28 40 L31 44 L34 36 L37 44 L40 36 L44 40" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.85"/>
+  <!-- Magnifying glass — lens circle (centered, not touching walls) -->
+  <circle cx="34" cy="21" r="8" stroke="white" stroke-width="2.5" fill="none"/>
+  <!-- Magnifying glass — handle -->
+  <line x1="39.5" y1="27" x2="46" y2="33" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Inside the lens: two small rects slightly misaligned -->
+  <rect x="28" y="17.5" width="5" height="3.5" rx="0.5" stroke="white" stroke-width="1.2" opacity="0.6"/>
+  <rect x="34" y="19" width="5" height="3.5" rx="0.5" stroke="white" stroke-width="1.2" opacity="0.6"/>
 </svg>
