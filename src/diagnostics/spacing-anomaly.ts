@@ -42,39 +42,77 @@ function walk(el: ExtractedElement, issues: Issue[]): void {
     );
 
   if (siblings.length >= 3 && !allInline) {
-    const axis = detectAxis(siblings);
+    // C4: Suppress for justify-content: space-between/around/evenly
+    const justifyContent = el.computed?.justifyContent;
+    if (justifyContent === 'space-between' || justifyContent === 'space-around' || justifyContent === 'space-evenly') {
+      // Skip — variable gap by design
+    } else {
+      const axis = detectAxis(siblings);
 
-    const gaps: { gap: number; between: [ExtractedElement, ExtractedElement] }[] = [];
-    for (let i = 0; i < siblings.length - 1; i++) {
-      let gap: number;
-      if (axis === 'horizontal') {
-        gap = siblings[i + 1].bounds.x - (siblings[i].bounds.x + siblings[i].bounds.w);
-      } else {
-        gap = siblings[i + 1].bounds.y - (siblings[i].bounds.y + siblings[i].bounds.h);
+      const gaps: { gap: number; between: [ExtractedElement, ExtractedElement] }[] = [];
+      for (let i = 0; i < siblings.length - 1; i++) {
+        let gap: number;
+        if (axis === 'horizontal') {
+          gap = siblings[i + 1].bounds.x - (siblings[i].bounds.x + siblings[i].bounds.w);
+        } else {
+          gap = siblings[i + 1].bounds.y - (siblings[i].bounds.y + siblings[i].bounds.h);
+        }
+        gaps.push({ gap, between: [siblings[i], siblings[i + 1]] });
       }
-      gaps.push({ gap, between: [siblings[i], siblings[i + 1]] });
-    }
 
-    const gapValues = gaps.map((g) => g.gap);
-    const mode = computeMode(gapValues, 2);
+      const gapValues = gaps.map((g) => g.gap);
 
-    // Require at least 2 gaps to agree on the mode before flagging outliers.
-    // With fewer matching gaps, there is no reliable pattern to detect deviations from.
-    const modeCount = gapValues.filter((v) => Math.abs(v - mode) <= 2).length;
-    if (modeCount >= 2) {
-      const threshold = Math.max(4, Math.abs(mode) * 0.2);
+      // C3: Check if parent has explicit gap for flex/grid
+      const parentGap = el.computed?.gap ?? el.computed?.columnGap ?? el.computed?.rowGap;
+      let useExplicitGap = false;
+      let declaredGap = 0;
+      if (parentGap && el.computed?.display) {
+        const d = el.computed.display;
+        if (d === 'flex' || d === 'grid' || d === 'inline-flex' || d === 'inline-grid') {
+          declaredGap = parseFloat(parentGap);
+          if (!isNaN(declaredGap) && declaredGap > 0) {
+            useExplicitGap = true;
+          }
+        }
+      }
 
-      for (const { gap, between } of gaps) {
-        const deviation = Math.abs(gap - mode);
-        if (deviation > threshold) {
-          issues.push({
-            type: 'spacing-anomaly',
-            severity: 'warning',
-            element: between[1].selector,
-            element2: between[0].selector,
-            detail: `Gap ${gap}px deviates from sibling pattern (${mode}px). Delta: ${deviation}px`,
-            data: { gap, mode, deviation },
-          });
+      if (useExplicitGap) {
+        // Compare each gap against declared gap with ±2px tolerance
+        for (const { gap, between } of gaps) {
+          const deviation = Math.abs(gap - declaredGap);
+          if (deviation > 2) {
+            issues.push({
+              type: 'spacing-anomaly',
+              severity: 'warning',
+              element: between[1].selector,
+              element2: between[0].selector,
+              detail: `Gap ${gap}px deviates from declared CSS gap (${declaredGap}px). Delta: ${deviation}px`,
+              data: { gap, mode: declaredGap, deviation },
+            });
+          }
+        }
+      } else {
+        const mode = computeMode(gapValues, 2);
+
+        // Require at least 2 gaps to agree on the mode before flagging outliers.
+        // With fewer matching gaps, there is no reliable pattern to detect deviations from.
+        const modeCount = gapValues.filter((v) => Math.abs(v - mode) <= 2).length;
+        if (modeCount >= 2) {
+          const threshold = Math.max(4, Math.abs(mode) * 0.2);
+
+          for (const { gap, between } of gaps) {
+            const deviation = Math.abs(gap - mode);
+            if (deviation > threshold) {
+              issues.push({
+                type: 'spacing-anomaly',
+                severity: 'warning',
+                element: between[1].selector,
+                element2: between[0].selector,
+                detail: `Gap ${gap}px deviates from sibling pattern (${mode}px). Delta: ${deviation}px`,
+                data: { gap, mode, deviation },
+              });
+            }
+          }
         }
       }
     }

@@ -31,16 +31,25 @@ function isAncestorFullyOffScreen(ancestors: ExtractedElement[], viewport: Viewp
   );
 }
 
+function hasContainPaint(el: ExtractedElement): boolean {
+  const contain = el.computed?.contain;
+  if (!contain) return false;
+  return contain.includes('paint') || contain === 'strict' || contain === 'content';
+}
+
 function isClippingElement(el: ExtractedElement): boolean {
+  if (hasContainPaint(el)) return true;
   const overflow = el.computed?.overflow as string | undefined;
   const overflowX = el.computed?.overflowX as string | undefined;
   return (
     overflow === 'hidden' ||
     overflow === 'scroll' ||
     overflow === 'auto' ||
+    overflow === 'clip' ||
     overflowX === 'hidden' ||
     overflowX === 'scroll' ||
-    overflowX === 'auto'
+    overflowX === 'auto' ||
+    overflowX === 'clip'
   );
 }
 

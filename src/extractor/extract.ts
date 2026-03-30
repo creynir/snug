@@ -47,6 +47,12 @@ function extractionScript(opts: { depth: number; includeHidden: boolean }): Extr
     'backdropFilter',
     'containerType',
     'visibility',
+    'contain',
+    'clipPath',
+    'pointerEvents',
+    'gap',
+    'columnGap',
+    'rowGap',
   ];
 
   function buildSelector(el: Element): string {
@@ -86,7 +92,7 @@ function extractionScript(opts: { depth: number; includeHidden: boolean }): Extr
     'perspective',
   ]);
 
-  const SEMANTIC_ATTRS = ['src', 'href', 'role', 'alt', 'aria-label', 'type', 'id', 'aria-labelledby', 'title', 'tabindex'];
+  const SEMANTIC_ATTRS = ['src', 'href', 'role', 'alt', 'aria-label', 'type', 'id', 'aria-labelledby', 'title', 'tabindex', 'aria-hidden', 'aria-expanded', 'aria-checked', 'aria-selected', 'aria-pressed', 'for'];
 
   function getSemanticAttributes(el: Element): Record<string, string> | undefined {
     const result: Record<string, string> = {};
@@ -133,6 +139,8 @@ function extractionScript(opts: { depth: number; includeHidden: boolean }): Extr
       if (val === 'auto' && AUTO_IS_DEFAULT.has(prop)) continue;
       if (prop === 'opacity' && val === '1') continue;
       if (prop === 'visibility' && val === 'visible') continue;
+      if (prop === 'pointerEvents' && val === 'auto') continue;
+      if (prop === 'contain' && val === 'none') continue;
       result[prop] = val;
     }
     return result;

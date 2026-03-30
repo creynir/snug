@@ -85,6 +85,21 @@ function walk(parent: ExtractedElement, issues: Issue[], viewport: Viewport): vo
         severity = 'warning';
       }
 
+      // Check for negative margin alignment (C1)
+      const negMargin = isNegativeMarginOverlap(a, b, overlapX, overlapY, overlapPercent);
+
+      // Check for pointer-events:none visual-only layer (C2)
+      const aNoPointer = a.computed?.pointerEvents === 'none';
+      const bNoPointer = b.computed?.pointerEvents === 'none';
+      const visualOnly = aNoPointer || bNoPointer;
+
+      if (negMargin) {
+        severity = 'warning';
+      }
+      if (visualOnly) {
+        severity = 'warning';
+      }
+
       const issue: Issue = {
         type: 'sibling-overlap',
         severity,
@@ -104,6 +119,14 @@ function walk(parent: ExtractedElement, issues: Issue[], viewport: Viewport): vo
 
       if (compound) {
         issue.context = { compoundControl: 'true' };
+      }
+
+      if (negMargin) {
+        issue.context = { ...issue.context, negativeMargin: 'true' };
+      }
+
+      if (visualOnly) {
+        issue.context = { ...issue.context, visualOnlyLayer: 'true' };
       }
 
       issues.push(issue);
@@ -140,6 +163,35 @@ function isStackingLayer(el: ExtractedElement, viewport: Viewport): boolean {
 }
 
 const FORM_CONTROLS = new Set(['input', 'select', 'textarea']);
+
+function isNegativeMarginOverlap(
+  a: ExtractedElement,
+  b: ExtractedElement,
+  overlapX: number,
+  overlapY: number,
+  overlapPercent: number,
+): boolean {
+  if (overlapPercent >= 0.5) return false; // large overlap still suspicious
+
+  const margins = [
+    { el: a, prop: 'marginLeft', axis: overlapX },
+    { el: a, prop: 'marginRight', axis: overlapX },
+    { el: b, prop: 'marginLeft', axis: overlapX },
+    { el: b, prop: 'marginRight', axis: overlapX },
+    { el: a, prop: 'marginTop', axis: overlapY },
+    { el: a, prop: 'marginBottom', axis: overlapY },
+    { el: b, prop: 'marginTop', axis: overlapY },
+    { el: b, prop: 'marginBottom', axis: overlapY },
+  ];
+
+  for (const { el, prop, axis } of margins) {
+    const val = el.computed?.[prop];
+    if (!val) continue;
+    const px = parseFloat(val);
+    if (px < 0 && Math.abs(Math.abs(px) - axis) <= 2) return true;
+  }
+  return false;
+}
 
 function isCompoundFormControl(a: ExtractedElement, b: ExtractedElement): boolean {
   const aIsForm = FORM_CONTROLS.has(a.tag);

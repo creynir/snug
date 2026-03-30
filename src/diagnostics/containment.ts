@@ -19,12 +19,28 @@ export function checkContainment(tree: ExtractedElement, _viewport: Viewport): I
   return issues;
 }
 
-const CLIP_VALUES = new Set(['hidden', 'scroll', 'auto']);
+const CLIP_VALUES = new Set(['hidden', 'scroll', 'auto', 'clip']);
 const INLINE_DISPLAYS = new Set(['inline', 'inline-block', 'inline-flex', 'inline-grid']);
 const TOLERANCE = 1;
 
+function hasContainPaint(el: ExtractedElement): boolean {
+  const contain = el.computed?.contain;
+  if (!contain) return false;
+  return contain.includes('paint') || contain === 'strict' || contain === 'content';
+}
+
 function walk(parent: ExtractedElement, issues: Issue[]): void {
   const cs = parent.computed;
+
+  // contain:paint/content/strict clips both axes
+  if (hasContainPaint(parent)) {
+    // Recurse into children without checking containment (parent clips intentionally)
+    for (const child of parent.children) {
+      walk(child, issues);
+    }
+    return;
+  }
+
   const overflowAll = cs?.overflow;
   const clipBothAxes = overflowAll !== undefined && CLIP_VALUES.has(overflowAll);
   const clipX = clipBothAxes || (cs?.overflowX !== undefined && CLIP_VALUES.has(cs.overflowX));
@@ -63,7 +79,21 @@ function walk(parent: ExtractedElement, issues: Issue[]): void {
 
     const maxOverflow = Math.max(overflowLeft, overflowTop, overflowRight, overflowBottom);
     if (maxOverflow > 0) {
-      const severity: IssueSeverity = maxOverflow > 20 ? 'error' : 'warning';
+      // C7: center-inside-parent severity for elements that start inside the parent
+      const childInset = child.bounds.x > parent.bounds.x && child.bounds.y > parent.bounds.y;
+      let severity: IssueSeverity;
+      if (childInset) {
+        const childCenterX = child.bounds.x + child.bounds.w / 2;
+        const childCenterY = child.bounds.y + child.bounds.h / 2;
+        const centerInsideParent =
+          childCenterX >= parent.bounds.x &&
+          childCenterX <= parent.bounds.x + parent.bounds.w &&
+          childCenterY >= parent.bounds.y &&
+          childCenterY <= parent.bounds.y + parent.bounds.h;
+        severity = centerInsideParent ? 'warning' : 'error';
+      } else {
+        severity = maxOverflow > 20 ? 'error' : 'warning';
+      }
       const sides: string[] = [];
       if (overflowLeft > 0) sides.push(`left(${overflowLeft}px)`);
       if (overflowTop > 0) sides.push(`top(${overflowTop}px)`);
