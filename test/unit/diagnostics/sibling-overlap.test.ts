@@ -919,4 +919,86 @@ describe('checkSiblingOverlap', () => {
       expect(issues[0].context?.stackingLayers).toBeUndefined();
     });
   });
+
+  // ── FOLLOWUP-011 C1: Negative margin alignment ──
+
+  describe('negative margin alignment (C1)', () => {
+    it('14. negative margin matching overlap + overlap < 50% → warning with negativeMargin context', () => {
+      const tree = makeElement({
+        selector: '.parent',
+        children: [
+          makeElement({
+            selector: '.a',
+            bounds: { x: 0, y: 0, w: 100, h: 100 },
+            computed: { position: 'absolute' },
+          }),
+          makeElement({
+            selector: '.b',
+            bounds: { x: 80, y: 0, w: 100, h: 100 },
+            computed: { position: 'absolute', marginLeft: '-20px' },
+            // overlapX = min(100,180) - max(0,80) = 100-80 = 20
+            // overlapY = 100
+            // overlapArea = 20*100 = 2000, smallerArea = 10000 => 20% < 50%
+            // marginLeft = -20px, overlapX = 20 => |abs(-20) - 20| = 0 <= 2 => match
+          }),
+        ],
+      });
+      const issues = checkSiblingOverlap(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].severity).toBe('warning');
+      expect(issues[0].context?.negativeMargin).toBe('true');
+    });
+
+    it('15. negative margin but overlap > 50% → still error', () => {
+      const tree = makeElement({
+        selector: '.parent',
+        children: [
+          makeElement({
+            selector: '.a',
+            bounds: { x: 0, y: 0, w: 100, h: 100 },
+            computed: { position: 'absolute' },
+          }),
+          makeElement({
+            selector: '.b',
+            bounds: { x: 20, y: 0, w: 100, h: 100 },
+            computed: { position: 'absolute', marginLeft: '-80px' },
+            // overlapX = min(100,120) - max(0,20) = 100-20 = 80
+            // overlapY = 100
+            // overlapArea = 80*100 = 8000, smallerArea = 10000 => 80% > 50%
+            // Even though negative margin matches, overlap too large
+          }),
+        ],
+      });
+      const issues = checkSiblingOverlap(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].severity).toBe('error');
+    });
+  });
+
+  // ── FOLLOWUP-011 C2: pointer-events:none ──
+
+  describe('pointer-events:none visual-only layer (C2)', () => {
+    it('16. pointer-events:none on one sibling → warning with visualOnlyLayer context', () => {
+      const tree = makeElement({
+        selector: '.parent',
+        children: [
+          makeElement({
+            selector: '.base-layer',
+            bounds: { x: 0, y: 0, w: 200, h: 200 },
+            computed: { position: 'absolute' },
+          }),
+          makeElement({
+            selector: '.decorative-overlay',
+            bounds: { x: 0, y: 0, w: 200, h: 200 },
+            computed: { position: 'absolute', pointerEvents: 'none' },
+            // 100% overlap but pointer-events:none → visual-only, no interactive conflict
+          }),
+        ],
+      });
+      const issues = checkSiblingOverlap(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].severity).toBe('warning');
+      expect(issues[0].context?.visualOnlyLayer).toBe('true');
+    });
+  });
 });

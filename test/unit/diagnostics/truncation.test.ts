@@ -338,4 +338,61 @@ describe('checkTruncation', () => {
     const issues = checkTruncation(tree, viewport);
     expect(issues.some(i => i.element === '.root-truncated')).toBe(true);
   });
+
+  // ── FOLLOWUP-011 C5: 3px truncation threshold ──
+
+  describe('3px truncation threshold (C5)', () => {
+    it('21. truncation clipped by 2px → not reported (sub-pixel rounding)', () => {
+      const tree = makeElement({
+        children: [
+          makeElement({
+            selector: '.subpixel-clip',
+            scroll: { scrollWidth: 200, scrollHeight: 26, clientWidth: 200, clientHeight: 24 },
+            computed: { overflow: 'hidden' },
+            // scrollHeight - clientHeight = 2px — sub-pixel rounding, not real truncation
+          }),
+        ],
+      });
+      const issues = checkTruncation(tree, viewport);
+      expect(issues).toEqual([]);
+    });
+
+    it('22. truncation clipped by 3px → reported', () => {
+      const tree = makeElement({
+        children: [
+          makeElement({
+            selector: '.real-clip',
+            scroll: { scrollWidth: 200, scrollHeight: 27, clientWidth: 200, clientHeight: 24 },
+            computed: { overflow: 'hidden' },
+            // scrollHeight - clientHeight = 3px — real truncation
+          }),
+        ],
+      });
+      const issues = checkTruncation(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].element).toBe('.real-clip');
+      expect(issues[0].type).toBe('truncation');
+    });
+  });
+
+  // ── FOLLOWUP-011 C6: text-overflow:ellipsis context marker ──
+
+  describe('text-overflow:ellipsis context marker (C6)', () => {
+    it('23. text-overflow:ellipsis → issue has intentionalEllipsis context', () => {
+      const tree = makeElement({
+        children: [
+          makeElement({
+            selector: '.ellipsis-text',
+            scroll: { scrollWidth: 400, scrollHeight: 24, clientWidth: 200, clientHeight: 24 },
+            computed: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+          }),
+        ],
+      });
+      const issues = checkTruncation(tree, viewport);
+      expect(issues.length).toBeGreaterThanOrEqual(1);
+      const issue = issues.find(i => i.element === '.ellipsis-text');
+      expect(issue).toBeDefined();
+      expect(issue!.context?.intentionalEllipsis).toBe('true');
+    });
+  });
 });

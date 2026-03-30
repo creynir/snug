@@ -1109,3 +1109,195 @@ describe('checkStacking — missing-isolation (2h)', () => {
     expect(mi).toEqual([]);
   });
 });
+
+// ──────────────────────────────────────────
+// FOLLOWUP-011 B3: contain/clip-path create stacking contexts
+// ──────────────────────────────────────────
+
+describe('checkStacking — contain/clip-path stacking contexts (B3)', () => {
+  it('7. contain:layout creates stacking context', () => {
+    // A child with high z-index inside a contain:layout parent should be flagged
+    // as a context trap, because contain:layout creates a stacking context
+    const tree = makeElement({
+      selector: 'body',
+      tag: 'body',
+      children: [
+        makeElement({
+          selector: '.contain-layout-parent',
+          computed: { contain: 'layout' },
+          children: [
+            makeElement({
+              selector: '.trapped-child',
+              computed: { zIndex: '999', position: 'relative' },
+            }),
+          ],
+        }),
+      ],
+    });
+    const issues = checkStacking(tree, viewport);
+    const traps = issues.filter(i => i.context?.check === 'context-trap');
+    expect(traps.length).toBe(1);
+    expect(traps[0].severity).toBe('warning');
+    expect(traps[0].element).toBe('.trapped-child');
+  });
+
+  it('8. contain:paint creates stacking context', () => {
+    const tree = makeElement({
+      selector: 'body',
+      tag: 'body',
+      children: [
+        makeElement({
+          selector: '.contain-paint-parent',
+          computed: { contain: 'paint' },
+          children: [
+            makeElement({
+              selector: '.trapped-child',
+              computed: { zIndex: '999', position: 'relative' },
+            }),
+          ],
+        }),
+      ],
+    });
+    const issues = checkStacking(tree, viewport);
+    const traps = issues.filter(i => i.context?.check === 'context-trap');
+    expect(traps.length).toBe(1);
+    expect(traps[0].severity).toBe('warning');
+    expect(traps[0].element).toBe('.trapped-child');
+  });
+
+  it('9. clip-path (non-none) creates stacking context', () => {
+    const tree = makeElement({
+      selector: 'body',
+      tag: 'body',
+      children: [
+        makeElement({
+          selector: '.clip-path-parent',
+          computed: { clipPath: 'circle(50%)' },
+          children: [
+            makeElement({
+              selector: '.trapped-child',
+              computed: { zIndex: '999', position: 'relative' },
+            }),
+          ],
+        }),
+      ],
+    });
+    const issues = checkStacking(tree, viewport);
+    const traps = issues.filter(i => i.context?.check === 'context-trap');
+    expect(traps.length).toBe(1);
+    expect(traps[0].severity).toBe('warning');
+    expect(traps[0].element).toBe('.trapped-child');
+  });
+
+  it('10. clip-path:none does NOT create stacking context', () => {
+    // clip-path: none is filtered by the extractor (not present in computed)
+    // so a parent with no clipPath computed property should NOT trap
+    const tree = makeElement({
+      selector: 'html',
+      tag: 'html',
+      children: [
+        makeElement({
+          selector: 'body',
+          tag: 'body',
+          children: [
+            makeElement({
+              selector: '.no-clip-parent',
+              // no clipPath in computed (filtered out by extractor for none)
+              children: [
+                makeElement({
+                  selector: '.high-z-child',
+                  computed: { zIndex: '999', position: 'relative' },
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+    const issues = checkStacking(tree, viewport);
+    const traps = issues.filter(i => i.context?.check === 'context-trap');
+    expect(traps).toEqual([]);
+  });
+});
+
+// ──────────────────────────────────────────
+// FOLLOWUP-011 B4: position:sticky broken by overflow:hidden ancestor
+// ──────────────────────────────────────────
+
+describe('checkStacking — sticky-broken (B4)', () => {
+  it('11. position:sticky with overflow:hidden ancestor produces warning', () => {
+    const tree = makeElement({
+      selector: 'body',
+      tag: 'body',
+      children: [
+        makeElement({
+          selector: '.overflow-hidden-ancestor',
+          bounds: { x: 0, y: 0, w: 500, h: 500 },
+          computed: { overflow: 'hidden' },
+          children: [
+            makeElement({
+              selector: '.sticky-el',
+              bounds: { x: 0, y: 0, w: 200, h: 50 },
+              computed: { position: 'sticky' },
+            }),
+          ],
+        }),
+      ],
+    });
+    const issues = checkStacking(tree, viewport);
+    const sb = issues.filter(i => i.context?.check === 'sticky-broken');
+    expect(sb.length).toBe(1);
+    expect(sb[0].severity).toBe('warning');
+    expect(sb[0].element).toBe('.sticky-el');
+    expect(sb[0].element2).toBe('.overflow-hidden-ancestor');
+    expect(sb[0].type).toBe('stacking');
+  });
+
+  it('12. position:sticky with overflow:visible ancestor does not flag', () => {
+    const tree = makeElement({
+      selector: 'body',
+      tag: 'body',
+      children: [
+        makeElement({
+          selector: '.overflow-visible-ancestor',
+          bounds: { x: 0, y: 0, w: 500, h: 500 },
+          computed: { overflow: 'visible' },
+          children: [
+            makeElement({
+              selector: '.sticky-el',
+              bounds: { x: 0, y: 0, w: 200, h: 50 },
+              computed: { position: 'sticky' },
+            }),
+          ],
+        }),
+      ],
+    });
+    const issues = checkStacking(tree, viewport);
+    const sb = issues.filter(i => i.context?.check === 'sticky-broken');
+    expect(sb).toEqual([]);
+  });
+
+  it('13. position:sticky with overflow:clip ancestor does not flag (clip allows sticky)', () => {
+    const tree = makeElement({
+      selector: 'body',
+      tag: 'body',
+      children: [
+        makeElement({
+          selector: '.overflow-clip-ancestor',
+          bounds: { x: 0, y: 0, w: 500, h: 500 },
+          computed: { overflow: 'clip' },
+          children: [
+            makeElement({
+              selector: '.sticky-el',
+              bounds: { x: 0, y: 0, w: 200, h: 50 },
+              computed: { position: 'sticky' },
+            }),
+          ],
+        }),
+      ],
+    });
+    const issues = checkStacking(tree, viewport);
+    const sb = issues.filter(i => i.context?.check === 'sticky-broken');
+    expect(sb).toEqual([]);
+  });
+});

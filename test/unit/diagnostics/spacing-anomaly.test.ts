@@ -712,4 +712,90 @@ describe('checkSpacingAnomaly', () => {
       expect(issues[0].element).toBe('.item-outlier');
     });
   });
+
+  // ── FOLLOWUP-011 C3: Explicit CSS gap as ground truth ──
+
+  describe('explicit CSS gap ground truth (C3)', () => {
+    it('17. compares against declared gap on flex parent, not mode', () => {
+      // Parent has display:flex and gap:20px.
+      // Children have gaps of 16, 16, 16, 21.
+      // Without gap-aware logic: mode=16, threshold=max(4, 3.2)=4, deviation of 5 > 4 => flags 21px gap
+      // WITH gap-aware logic: declared gap is 20px, actual gap 21px is within 2px tolerance => no issue.
+      // The 16px gaps deviate from declared 20px by 4px > 2px tolerance — but the spec says
+      // compare against declared gap with ±2px tolerance.
+      // So this test verifies that the declared gap (20px) is used as reference, and the 21px gap
+      // is NOT flagged (within 2px of declared), while without the feature the mode-based logic
+      // WOULD flag the 21px gap as an outlier.
+      const tree = makeElement({
+        selector: '.flex-row',
+        computed: { display: 'flex', gap: '20px' },
+        children: [
+          makeElement({ selector: '.a', bounds: { x: 0, y: 0, w: 100, h: 40 } }),
+          makeElement({ selector: '.b', bounds: { x: 116, y: 0, w: 100, h: 40 } }),  // gap 16
+          makeElement({ selector: '.c', bounds: { x: 232, y: 0, w: 100, h: 40 } }),  // gap 16
+          makeElement({ selector: '.d', bounds: { x: 348, y: 0, w: 100, h: 40 } }),  // gap 16
+          makeElement({ selector: '.e', bounds: { x: 469, y: 0, w: 100, h: 40 } }),  // gap 21
+        ],
+      });
+      const issues = checkSpacingAnomaly(tree, viewport);
+      // The 21px gap is within 2px of declared 20px gap — should NOT be flagged
+      // Without the feature, mode=16 and deviation=5 would cause it to be flagged
+      const eIssues = issues.filter(i => i.element === '.e');
+      expect(eIssues).toEqual([]);
+    });
+  });
+
+  // ── FOLLOWUP-011 C4: Suppress spacing for justify-content: space-between/around/evenly ──
+
+  describe('justify-content suppression (C4)', () => {
+    it('18. justify-content:space-between → skip spacing check entirely', () => {
+      // Gaps: 16, 16, 68 — would normally flag the 68px gap as an outlier
+      // (mode=16, deviation=52 > max(4, 3.2)=4), but space-between means
+      // variable gap is by design — should be suppressed entirely
+      const tree = makeElement({
+        selector: '.flex-row',
+        computed: { display: 'flex', justifyContent: 'space-between' },
+        children: [
+          makeElement({ selector: '.a', bounds: { x: 0, y: 0, w: 100, h: 40 } }),
+          makeElement({ selector: '.b', bounds: { x: 116, y: 0, w: 100, h: 40 } }),  // gap 16
+          makeElement({ selector: '.c', bounds: { x: 232, y: 0, w: 100, h: 40 } }),  // gap 16
+          makeElement({ selector: '.d', bounds: { x: 400, y: 0, w: 100, h: 40 } }),  // gap 68 ← outlier
+        ],
+      });
+      const issues = checkSpacingAnomaly(tree, viewport);
+      expect(issues).toEqual([]);
+    });
+
+    it('19. justify-content:space-around → skip', () => {
+      // Same gap pattern as test 18 but with space-around
+      const tree = makeElement({
+        selector: '.flex-row',
+        computed: { display: 'flex', justifyContent: 'space-around' },
+        children: [
+          makeElement({ selector: '.a', bounds: { x: 0, y: 0, w: 100, h: 40 } }),
+          makeElement({ selector: '.b', bounds: { x: 116, y: 0, w: 100, h: 40 } }),  // gap 16
+          makeElement({ selector: '.c', bounds: { x: 232, y: 0, w: 100, h: 40 } }),  // gap 16
+          makeElement({ selector: '.d', bounds: { x: 400, y: 0, w: 100, h: 40 } }),  // gap 68 ← outlier
+        ],
+      });
+      const issues = checkSpacingAnomaly(tree, viewport);
+      expect(issues).toEqual([]);
+    });
+
+    it('20. justify-content:space-evenly → skip', () => {
+      // Same gap pattern as test 18 but with space-evenly
+      const tree = makeElement({
+        selector: '.flex-row',
+        computed: { display: 'flex', justifyContent: 'space-evenly' },
+        children: [
+          makeElement({ selector: '.a', bounds: { x: 0, y: 0, w: 100, h: 40 } }),
+          makeElement({ selector: '.b', bounds: { x: 116, y: 0, w: 100, h: 40 } }),  // gap 16
+          makeElement({ selector: '.c', bounds: { x: 232, y: 0, w: 100, h: 40 } }),  // gap 16
+          makeElement({ selector: '.d', bounds: { x: 400, y: 0, w: 100, h: 40 } }),  // gap 68 ← outlier
+        ],
+      });
+      const issues = checkSpacingAnomaly(tree, viewport);
+      expect(issues).toEqual([]);
+    });
+  });
 });
