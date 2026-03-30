@@ -1,6 +1,4 @@
-<p align="center"><img src="assets/logo.svg" alt="Snug" width="120" /></p>
-
-# snug
+# <img src="assets/logo.svg" alt="" height="32" /> snug
 
 **Layout diagnostics for AI agents.** Math instead of pixels.
 
