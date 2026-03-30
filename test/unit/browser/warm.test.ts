@@ -8,6 +8,10 @@ import { getWarmEndpoint, saveWarmHandle, cleanWarmHandle } from '../../../src/b
 const SOCK_FILE = join(tmpdir(), 'snug-browser.json');
 
 describe('warm browser handle', () => {
+  beforeEach(async () => {
+    await cleanWarmHandle();
+  });
+
   afterEach(async () => {
     await cleanWarmHandle();
   });
