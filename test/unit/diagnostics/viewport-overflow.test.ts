@@ -813,4 +813,127 @@ describe('checkViewportOverflow', () => {
       expect(childIssues).toEqual([]);
     });
   });
+
+  // ── FOLLOWUP-011 B1: overflow:clip as clipping ancestor ──
+
+  describe('overflow:clip as clipping ancestor (B1)', () => {
+    it('reports warning (not error) for overflow inside overflow:clip parent', () => {
+      const tree = makeElement({
+        selector: 'body',
+        children: [
+          makeElement({
+            selector: '.clip-wrapper',
+            bounds: { x: 0, y: 0, w: 800, h: 200 },
+            computed: { overflow: 'clip' },
+            children: [
+              makeElement({
+                selector: '.clipped-wide',
+                bounds: { x: 0, y: 0, w: 1500, h: 200 },
+              }),
+            ],
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      const issue = issues.find(i => i.element === '.clipped-wide');
+      expect(issue).toBeDefined();
+      expect(issue!.severity).toBe('warning');
+    });
+  });
+
+  // ── FOLLOWUP-011 B2: contain:paint/content/strict as clipping ancestor ──
+
+  describe('contain:paint/content/strict as clipping ancestor (B2)', () => {
+    it('reports warning for overflow inside contain:paint parent', () => {
+      const tree = makeElement({
+        selector: 'body',
+        children: [
+          makeElement({
+            selector: '.contain-paint-wrapper',
+            bounds: { x: 0, y: 0, w: 800, h: 200 },
+            computed: { contain: 'paint' },
+            children: [
+              makeElement({
+                selector: '.contained-wide',
+                bounds: { x: 0, y: 0, w: 1500, h: 200 },
+              }),
+            ],
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      const issue = issues.find(i => i.element === '.contained-wide');
+      expect(issue).toBeDefined();
+      expect(issue!.severity).toBe('warning');
+    });
+
+    it('reports warning for overflow inside contain:content parent', () => {
+      const tree = makeElement({
+        selector: 'body',
+        children: [
+          makeElement({
+            selector: '.contain-content-wrapper',
+            bounds: { x: 0, y: 0, w: 800, h: 200 },
+            computed: { contain: 'content' },
+            children: [
+              makeElement({
+                selector: '.contained-wide',
+                bounds: { x: 0, y: 0, w: 1500, h: 200 },
+              }),
+            ],
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      const issue = issues.find(i => i.element === '.contained-wide');
+      expect(issue).toBeDefined();
+      expect(issue!.severity).toBe('warning');
+    });
+
+    it('reports warning for overflow inside contain:strict parent', () => {
+      const tree = makeElement({
+        selector: 'body',
+        children: [
+          makeElement({
+            selector: '.contain-strict-wrapper',
+            bounds: { x: 0, y: 0, w: 800, h: 200 },
+            computed: { contain: 'strict' },
+            children: [
+              makeElement({
+                selector: '.contained-wide',
+                bounds: { x: 0, y: 0, w: 1500, h: 200 },
+              }),
+            ],
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      const issue = issues.find(i => i.element === '.contained-wide');
+      expect(issue).toBeDefined();
+      expect(issue!.severity).toBe('warning');
+    });
+
+    it('does NOT treat contain:layout as clipping ancestor (layout does not clip)', () => {
+      const tree = makeElement({
+        selector: 'body',
+        children: [
+          makeElement({
+            selector: '.contain-layout-wrapper',
+            bounds: { x: 0, y: 0, w: 800, h: 200 },
+            computed: { contain: 'layout' },
+            children: [
+              makeElement({
+                selector: '.not-clipped-wide',
+                bounds: { x: 0, y: 0, w: 1500, h: 200 },
+              }),
+            ],
+          }),
+        ],
+      });
+      const issues = checkViewportOverflow(tree, viewport);
+      const issue = issues.find(i => i.element === '.not-clipped-wide');
+      expect(issue).toBeDefined();
+      expect(issue!.severity).toBe('error');
+    });
+  });
 });

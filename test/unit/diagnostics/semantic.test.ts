@@ -877,3 +877,274 @@ describe('checkSemantic — D4: table-misalignment', () => {
     expect(tableIssues).toEqual([]);
   });
 });
+
+// ──────────────────────────────────────────
+// FOLLOWUP-011 D1: aria-hidden-focus
+// ──────────────────────────────────────────
+
+describe('checkSemantic — aria-hidden-focus', () => {
+  it('26. aria-hidden="true" on button → error', () => {
+    const tree = makeElement({
+      selector: 'body',
+      children: [
+        makeElement({
+          selector: '.hidden-btn',
+          tag: 'button',
+          bounds: { x: 0, y: 0, w: 100, h: 40 },
+          attributes: { 'aria-hidden': 'true' },
+          text: 'Submit',
+        }),
+      ],
+    });
+
+    const issues = checkSemantic(tree, viewport);
+    const ahf = issues.filter((i) => i.context?.check === 'aria-hidden-focus');
+    expect(ahf.length).toBe(1);
+    expect(ahf[0].severity).toBe('error');
+    expect(ahf[0].type).toBe('semantic');
+    expect(ahf[0].element).toBe('.hidden-btn');
+  });
+
+  it('27. aria-hidden="true" on div containing input descendant → error on the input', () => {
+    const tree = makeElement({
+      selector: 'body',
+      children: [
+        makeElement({
+          selector: '.hidden-container',
+          tag: 'div',
+          bounds: { x: 0, y: 0, w: 400, h: 200 },
+          attributes: { 'aria-hidden': 'true' },
+          children: [
+            makeElement({
+              selector: '.hidden-container input',
+              tag: 'input',
+              bounds: { x: 10, y: 10, w: 200, h: 30 },
+              attributes: { type: 'text' },
+            }),
+          ],
+        }),
+      ],
+    });
+
+    const issues = checkSemantic(tree, viewport);
+    const ahf = issues.filter((i) => i.context?.check === 'aria-hidden-focus');
+    // Should flag the input descendant inside the aria-hidden container
+    const inputIssue = ahf.find((i) => i.element === '.hidden-container input');
+    expect(inputIssue).toBeDefined();
+    expect(inputIssue!.severity).toBe('error');
+  });
+
+  it('28. aria-hidden="true" on non-focusable div → no issue', () => {
+    const tree = makeElement({
+      selector: 'body',
+      children: [
+        makeElement({
+          selector: '.decorative',
+          tag: 'div',
+          bounds: { x: 0, y: 0, w: 200, h: 100 },
+          attributes: { 'aria-hidden': 'true' },
+          // No focusable tag, no tabindex, no focusable descendants
+        }),
+      ],
+    });
+
+    const issues = checkSemantic(tree, viewport);
+    const ahf = issues.filter((i) => i.context?.check === 'aria-hidden-focus');
+    expect(ahf).toEqual([]);
+  });
+});
+
+// ──────────────────────────────────────────
+// FOLLOWUP-011 D2: broken-label-for
+// ──────────────────────────────────────────
+
+describe('checkSemantic — broken-label-for', () => {
+  it('29. label for="email" with no id="email" in tree → error', () => {
+    const tree = makeElement({
+      selector: 'body',
+      children: [
+        makeElement({
+          selector: '.form label',
+          tag: 'label',
+          bounds: { x: 0, y: 0, w: 100, h: 20 },
+          attributes: { for: 'email' },
+          text: 'Email',
+        }),
+        makeElement({
+          selector: '.form input',
+          tag: 'input',
+          bounds: { x: 0, y: 24, w: 200, h: 30 },
+          attributes: { type: 'text' },
+          // Note: no id="email" on this input
+        }),
+      ],
+    });
+
+    const issues = checkSemantic(tree, viewport);
+    const blf = issues.filter((i) => i.context?.check === 'broken-label-for');
+    expect(blf.length).toBe(1);
+    expect(blf[0].severity).toBe('error');
+    expect(blf[0].type).toBe('semantic');
+    expect(blf[0].element).toBe('.form label');
+  });
+
+  it('30. label for="email" with id="email" in tree → no issue', () => {
+    const tree = makeElement({
+      selector: 'body',
+      children: [
+        makeElement({
+          selector: '.form label',
+          tag: 'label',
+          bounds: { x: 0, y: 0, w: 100, h: 20 },
+          attributes: { for: 'email' },
+          text: 'Email',
+        }),
+        makeElement({
+          selector: '.form input#email',
+          tag: 'input',
+          bounds: { x: 0, y: 24, w: 200, h: 30 },
+          attributes: { type: 'text', id: 'email' },
+        }),
+      ],
+    });
+
+    const issues = checkSemantic(tree, viewport);
+    const blf = issues.filter((i) => i.context?.check === 'broken-label-for');
+    expect(blf).toEqual([]);
+  });
+});
+
+// ──────────────────────────────────────────
+// FOLLOWUP-011 D3: role-without-tabindex
+// ──────────────────────────────────────────
+
+describe('checkSemantic — role-without-tabindex', () => {
+  it('31. role="button" on div without tabindex → warning', () => {
+    const tree = makeElement({
+      selector: 'body',
+      children: [
+        makeElement({
+          selector: '.custom-btn',
+          tag: 'div',
+          bounds: { x: 0, y: 0, w: 100, h: 40 },
+          attributes: { role: 'button' },
+          text: 'Click me',
+        }),
+      ],
+    });
+
+    const issues = checkSemantic(tree, viewport);
+    const rwt = issues.filter((i) => i.context?.check === 'role-without-tabindex');
+    expect(rwt.length).toBe(1);
+    expect(rwt[0].severity).toBe('warning');
+    expect(rwt[0].type).toBe('semantic');
+    expect(rwt[0].element).toBe('.custom-btn');
+  });
+
+  it('32. role="button" on native button → no issue (implicit tabindex)', () => {
+    const tree = makeElement({
+      selector: 'body',
+      children: [
+        makeElement({
+          selector: '.native-btn',
+          tag: 'button',
+          bounds: { x: 0, y: 0, w: 100, h: 40 },
+          attributes: { role: 'button' },
+          text: 'Click me',
+        }),
+      ],
+    });
+
+    const issues = checkSemantic(tree, viewport);
+    const rwt = issues.filter((i) => i.context?.check === 'role-without-tabindex');
+    expect(rwt).toEqual([]);
+  });
+
+  it('33. role="button" on div with tabindex="0" → no issue', () => {
+    const tree = makeElement({
+      selector: 'body',
+      children: [
+        makeElement({
+          selector: '.custom-btn',
+          tag: 'div',
+          bounds: { x: 0, y: 0, w: 100, h: 40 },
+          attributes: { role: 'button', tabindex: '0' },
+          text: 'Click me',
+        }),
+      ],
+    });
+
+    const issues = checkSemantic(tree, viewport);
+    const rwt = issues.filter((i) => i.context?.check === 'role-without-tabindex');
+    expect(rwt).toEqual([]);
+  });
+});
+
+// ──────────────────────────────────────────
+// FOLLOWUP-011 D4: aria-required-attr
+// ──────────────────────────────────────────
+
+describe('checkSemantic — aria-required-attr', () => {
+  it('34. role="checkbox" without aria-checked → warning', () => {
+    const tree = makeElement({
+      selector: 'body',
+      children: [
+        makeElement({
+          selector: '.custom-checkbox',
+          tag: 'div',
+          bounds: { x: 0, y: 0, w: 20, h: 20 },
+          attributes: { role: 'checkbox' },
+          // Missing aria-checked
+        }),
+      ],
+    });
+
+    const issues = checkSemantic(tree, viewport);
+    const ara = issues.filter((i) => i.context?.check === 'aria-required-attr');
+    expect(ara.length).toBe(1);
+    expect(ara[0].severity).toBe('warning');
+    expect(ara[0].type).toBe('semantic');
+    expect(ara[0].element).toBe('.custom-checkbox');
+    expect(ara[0].context?.missingAttrs).toContain('aria-checked');
+  });
+
+  it('35. role="slider" without aria-valuenow → warning', () => {
+    const tree = makeElement({
+      selector: 'body',
+      children: [
+        makeElement({
+          selector: '.custom-slider',
+          tag: 'div',
+          bounds: { x: 0, y: 0, w: 200, h: 20 },
+          attributes: { role: 'slider' },
+          // Missing aria-valuenow, aria-valuemin, aria-valuemax
+        }),
+      ],
+    });
+
+    const issues = checkSemantic(tree, viewport);
+    const ara = issues.filter((i) => i.context?.check === 'aria-required-attr');
+    expect(ara.length).toBe(1);
+    expect(ara[0].severity).toBe('warning');
+    expect(ara[0].context?.missingAttrs).toContain('aria-valuenow');
+  });
+
+  it('36. input[type=checkbox] without aria-checked → no issue (native implicit)', () => {
+    const tree = makeElement({
+      selector: 'body',
+      children: [
+        makeElement({
+          selector: '.form input[type=checkbox]',
+          tag: 'input',
+          bounds: { x: 0, y: 0, w: 20, h: 20 },
+          attributes: { type: 'checkbox' },
+          // Native checkbox has implicit aria-checked — should NOT be flagged
+        }),
+      ],
+    });
+
+    const issues = checkSemantic(tree, viewport);
+    const ara = issues.filter((i) => i.context?.check === 'aria-required-attr');
+    expect(ara).toEqual([]);
+  });
+});

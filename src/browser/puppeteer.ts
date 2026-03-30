@@ -63,7 +63,9 @@ export class PuppeteerAdapter implements BrowserAdapter {
     const page = await this.browser.newPage();
     await page.setViewport({ width: vp.width, height: vp.height });
 
-    if (input.filePath) {
+    if (input.url) {
+      await page.goto(input.url, { waitUntil: 'networkidle0', timeout: 30000 });
+    } else if (input.filePath) {
       const absPath = resolve(input.filePath);
       const fileUrl = pathToFileURL(absPath).href;
       await page.goto(fileUrl, { waitUntil: 'networkidle0' });
@@ -82,7 +84,7 @@ export class PuppeteerAdapter implements BrowserAdapter {
       }
       await page.setContent(html, { waitUntil: 'networkidle0' });
     } else {
-      throw new Error('Either filePath or html must be provided.');
+      throw new Error('Either filePath, html, or url must be provided.');
     }
 
     // Wait for fonts to finish loading

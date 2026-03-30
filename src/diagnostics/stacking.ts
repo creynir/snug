@@ -21,6 +21,7 @@ function walk(
   checkNegativeZIndex(el, ancestors, issues);
   checkOverflowClipping(el, ancestors, issues);
   checkMissingIsolation(el, ancestors, viewport, issues);
+  checkStickyBroken(el, ancestors, issues);
 
   ancestors.push(el);
   for (const child of el.children) {
@@ -43,6 +44,13 @@ function createsStackingContext(el: ExtractedElement): boolean {
   if (c.perspective) return true;
   if (c.backdropFilter) return true;
   if (c.containerType && c.containerType !== 'normal') return true;
+  // CSS Containment
+  if (c.contain) {
+    const v = c.contain;
+    if (v.includes('paint') || v.includes('layout') || v === 'strict' || v === 'content') return true;
+  }
+  // clip-path
+  if (c.clipPath) return true;  // any non-none value (none already filtered by extractor)
   return false;
 }
 
@@ -75,6 +83,12 @@ function getStackingReason(el: ExtractedElement): {
     return { property: 'container-type', value: c.containerType, intentional: false };
   if (c.perspective)
     return { property: 'perspective', value: c.perspective, intentional: false };
+  if (c.contain && (c.contain.includes('paint') || c.contain.includes('layout') || c.contain === 'strict' || c.contain === 'content')) {
+    return { property: 'contain', value: c.contain, intentional: false };
+  }
+  if (c.clipPath) {
+    return { property: 'clip-path', value: c.clipPath, intentional: false };
+  }
   return { property: 'unknown', value: 'unknown', intentional: false };
 }
 
@@ -349,6 +363,36 @@ function checkMissingIsolation(
     computed: { [el.selector]: { isolation: 'auto' } },
     context: { check: 'missing-isolation' },
   });
+}
+
+function checkStickyBroken(
+  el: ExtractedElement,
+  ancestors: ExtractedElement[],
+  issues: Issue[],
+): void {
+  if (el.computed?.position !== 'sticky') return;
+
+  for (let i = ancestors.length - 1; i >= 0; i--) {
+    const ancestor = ancestors[i];
+    if (ancestor.tag === 'html' || ancestor.tag === 'body') break;
+
+    const overflow = ancestor.computed?.overflow ?? ancestor.computed?.overflowY ?? ancestor.computed?.overflowX;
+    if (overflow === 'hidden' || overflow === 'auto' || overflow === 'scroll') {
+      issues.push({
+        type: 'stacking',
+        severity: 'warning',
+        element: el.selector,
+        element2: ancestor.selector,
+        detail: `position: sticky will not work — ancestor ${ancestor.selector} has overflow: ${overflow}. Sticky requires overflow: visible or clip on scroll ancestors.`,
+        computed: {
+          [el.selector]: { position: 'sticky' },
+          [ancestor.selector]: { overflow: overflow },
+        },
+        context: { check: 'sticky-broken' },
+      });
+      return;
+    }
+  }
 }
 
 function boundsOverlap(a: Bounds, b: Bounds): boolean {

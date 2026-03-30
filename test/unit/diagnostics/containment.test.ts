@@ -840,4 +840,135 @@ describe('checkContainment', () => {
       expect(handleIssues[0].type).toBe('containment');
     });
   });
+
+  // ── FOLLOWUP-011 B1: overflow:clip as clipping ancestor in containment ──
+
+  describe('overflow:clip as clipping ancestor (B1)', () => {
+    it('skips parent with overflow:clip (clipping is intentional)', () => {
+      const tree = makeElement({
+        selector: '.container',
+        bounds: { x: 100, y: 100, w: 400, h: 300 },
+        computed: { overflow: 'clip' },
+        children: [
+          makeElement({
+            selector: '.clipped',
+            bounds: { x: 50, y: 50, w: 600, h: 400 },
+          }),
+        ],
+      });
+      const issues = checkContainment(tree, viewport);
+      expect(issues).toEqual([]);
+    });
+  });
+
+  // ── FOLLOWUP-011 B2: contain:paint/content/strict as clipping ancestor in containment ──
+
+  describe('contain:paint/content/strict as clipping ancestor (B2)', () => {
+    it('skips parent with contain:paint', () => {
+      const tree = makeElement({
+        selector: '.container',
+        bounds: { x: 100, y: 100, w: 400, h: 300 },
+        computed: { contain: 'paint' },
+        children: [
+          makeElement({
+            selector: '.contained-child',
+            bounds: { x: 50, y: 50, w: 600, h: 400 },
+          }),
+        ],
+      });
+      const issues = checkContainment(tree, viewport);
+      expect(issues).toEqual([]);
+    });
+
+    it('skips parent with contain:content', () => {
+      const tree = makeElement({
+        selector: '.container',
+        bounds: { x: 100, y: 100, w: 400, h: 300 },
+        computed: { contain: 'content' },
+        children: [
+          makeElement({
+            selector: '.contained-child',
+            bounds: { x: 50, y: 50, w: 600, h: 400 },
+          }),
+        ],
+      });
+      const issues = checkContainment(tree, viewport);
+      expect(issues).toEqual([]);
+    });
+
+    it('skips parent with contain:strict', () => {
+      const tree = makeElement({
+        selector: '.container',
+        bounds: { x: 100, y: 100, w: 400, h: 300 },
+        computed: { contain: 'strict' },
+        children: [
+          makeElement({
+            selector: '.contained-child',
+            bounds: { x: 50, y: 50, w: 600, h: 400 },
+          }),
+        ],
+      });
+      const issues = checkContainment(tree, viewport);
+      expect(issues).toEqual([]);
+    });
+
+    it('does NOT skip parent with contain:layout (layout does not clip)', () => {
+      const tree = makeElement({
+        selector: '.container',
+        bounds: { x: 100, y: 100, w: 400, h: 300 },
+        computed: { contain: 'layout' },
+        children: [
+          makeElement({
+            selector: '.not-contained',
+            bounds: { x: 50, y: 50, w: 600, h: 400 },
+          }),
+        ],
+      });
+      const issues = checkContainment(tree, viewport);
+      expect(issues.length).toBeGreaterThanOrEqual(1);
+      expect(issues[0].element).toBe('.not-contained');
+    });
+  });
+
+  // ── FOLLOWUP-011 C7: center-inside-parent severity ──
+
+  describe('center-inside-parent severity (C7)', () => {
+    it('reports warning when child center is inside parent bounds', () => {
+      const tree = makeElement({
+        selector: '.container',
+        bounds: { x: 100, y: 100, w: 400, h: 300 },
+        children: [
+          makeElement({
+            selector: '.partial-protrusion',
+            bounds: { x: 200, y: 150, w: 400, h: 100 },
+            // child center: (200 + 400/2, 150 + 100/2) = (400, 200)
+            // parent bounds: x:100..500, y:100..400
+            // center (400, 200) IS inside parent => warning
+          }),
+        ],
+      });
+      const issues = checkContainment(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].severity).toBe('warning');
+    });
+
+    it('reports error when child center is outside parent bounds', () => {
+      const tree = makeElement({
+        selector: '.container',
+        bounds: { x: 100, y: 100, w: 400, h: 300 },
+        children: [
+          makeElement({
+            selector: '.full-escape',
+            bounds: { x: 550, y: 150, w: 200, h: 100 },
+            // child center: (550 + 200/2, 150 + 100/2) = (650, 200)
+            // parent bounds: x:100..500, y:100..400
+            // center x=650 > 500, so center is OUTSIDE parent => error
+          }),
+        ],
+      });
+      const issues = checkContainment(tree, viewport);
+      expect(issues.length).toBe(1);
+      expect(issues[0].severity).toBe('error');
+    });
+  });
 });

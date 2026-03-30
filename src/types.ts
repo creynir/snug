@@ -153,6 +153,8 @@ export interface RenderInput {
   filePath?: string;
   /** Raw HTML string */
   html?: string;
+  /** URL to navigate to directly */
+  url?: string;
   /** Base URL for resolving relative resources (used with html input) */
   baseUrl?: string;
   /** Viewport dimensions (default: 1280x800) */
@@ -180,6 +182,8 @@ export interface CheckOptions {
   file?: string;
   /** Read HTML from stdin */
   stdin?: boolean;
+  /** URL to navigate to */
+  url?: string;
   /** Base URL for relative resource resolution */
   baseUrl?: string;
   /** Max DOM depth (0 = unlimited) */

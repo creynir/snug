@@ -46,6 +46,7 @@ export async function check(
     const page = await adapter.render({
       filePath: options.file,
       html,
+      url: options.url,
       baseUrl: options.baseUrl,
       viewport,
     });

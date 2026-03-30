@@ -70,6 +70,10 @@ async function main(): Promise<void> {
           describe: 'Keep browser alive for N seconds after check',
           type: 'number',
           default: 180,
+        })
+        .option('url', {
+          type: 'string',
+          description: 'URL to check (e.g., http://localhost:5173/page)',
         });
     })
     .demandCommand(1)
@@ -91,9 +95,21 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
+  // Validate mutually exclusive inputs
+  const inputCount = [args.file, args.stdin, args.url].filter(Boolean).length;
+  if (inputCount > 1) {
+    console.error('Error: Specify exactly one of: file, --stdin, or --url');
+    process.exit(2);
+  }
+  if (inputCount === 0) {
+    console.error('Error: Specify one of: file, --stdin, or --url');
+    process.exit(2);
+  }
+
   const options: CheckOptions = {
     file: args.file,
     stdin: args.stdin,
+    url: args.url,
     baseUrl: args.baseUrl,
     depth: args.depth,
     width: args.width,
