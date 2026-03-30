@@ -26,6 +26,9 @@ npm install snug-cli
 # Check a local HTML file
 snug check page.html
 
+# Check a live URL (local dev server, staging, any URL)
+snug check --url http://localhost:5173/settings
+
 # Pipe HTML from stdin
 cat page.html | snug check --stdin
 
@@ -44,8 +47,9 @@ snug check page.html --width 1440 --height 900
 | **spacing-anomaly** | Inconsistent gaps between siblings |
 | **truncation** | Text or content clipped by overflow:hidden |
 | **aspect-ratio** | Images rendered at wrong proportions |
-| **stacking** | Z-index bugs — ineffective z-index, stacking context traps, broken position:fixed |
-| **semantic** | Missing alt text, duplicate IDs, empty buttons, heading hierarchy, positive tabindex |
+| **stacking** | Z-index bugs — ineffective z-index, stacking context traps, broken position:fixed/sticky |
+| **occlusion** | Cross-level element coverage — content hidden by elements in different DOM subtrees |
+| **semantic** | Missing alt, duplicate IDs, empty buttons, heading hierarchy, aria-hidden traps, broken label-for |
 | **content-duplicate** | Duplicate images, links, landmarks, headings |
 | **broken-image** | Images that failed to load |
 
@@ -75,6 +79,7 @@ tree:
 snug check [file]
 
 Options:
+  --url         URL to check (http://localhost:5173/page)
   --stdin       Read HTML from stdin
   --base-url    Base URL for resolving relative resources
   --depth       Max DOM depth (0 = unlimited)         [default: 0]
@@ -116,13 +121,18 @@ All diagnostics are pure arithmetic over rectangles. They're fast, deterministic
 
 ## Smart about noise
 
-Snug tries not to waste your time with false positives:
+Snug reduces false positives through generic heuristics, not pattern-specific rules:
 
-- Elements inside `overflow: hidden` containers get downgraded to warnings (they're visually clipped)
-- SVG drawing primitives are skipped for overlap/spacing checks (they overlap by design)
+- Elements inside `overflow: hidden` containers are downgraded to warnings (visually clipped)
+- SVG drawing primitives skip overlap/spacing checks (overlap by design)
 - Inline text spans skip overlap checks (normal text flow)
-- Small edge-mounted elements (ports, badges, handles) are recognized as intentional
-- Full-viewport fixed overlays (modals, backdrops) are recognized as stacking layers
+- Edge-mounted elements (ports, badges) are suppressed — intentional protrusion
+- Negative CSS margins matching the overlap direction are recognized as intentional
+- `pointer-events: none` layers are recognized as visual-only (no interactive conflict)
+- CSS `gap` property used as ground truth instead of statistical inference when available
+- `justify-content: space-between/around/evenly` layouts skip spacing checks (variable by design)
+- Occlusion uses `elementsFromPoint()` sampling for ground truth + intentionality scoring (viewport coverage, z-index gap, position, DOM distance) to distinguish accidental occlusion from intentional overlays
+- Sub-pixel truncation (≤2px) filtered to avoid browser font rounding noise
 
 ## Benchmark
 
@@ -131,39 +141,49 @@ Tested against 99 production mockups (~30,000 DOM elements) spanning dashboards,
 | Metric | Value |
 |---|---|
 | Pages tested | 99 |
-| Real layout bugs found | ~130 |
+| Diagnostics | 12 categories |
+| Total errors | 106 |
+| Total warnings | 2,073 |
+| Pages with zero errors | 55 (57%) |
 | Recall (bugs caught / bugs present) | **95%** |
-| False negatives | 8 across 99 pages |
-| Diagnostics | 11 categories |
 
 ### What Snug catches
 
-| Category | Bugs found | Example |
+| Category | Findings | Example |
 |---|---|---|
-| Accessibility gaps | ~40 | Icon buttons without `aria-label` |
-| Content truncation | ~15 | YAML editor line numbers overflowing container |
-| Viewport overflow | ~12 | Inspector tabs clipped at panel edge |
-| Z-index / stacking bugs | ~8 | `z-index` on `position: static` (silently ignored) |
-| Spacing inconsistencies | ~10 | Palette search input with extra margin |
-| Text-on-text overlap | ~3 | Textarea badge covering input content |
-| Content duplication | ~7 | Duplicate nav links across mobile/desktop |
-| Containment violations | ~5 | Form sections overflowing form container |
-| Heading hierarchy | ~2 | `h3` followed by `h5` (skipped `h4`) |
+| Sibling overlap | 969 | Avatar stacks, canvas node collisions, form control overlaps |
+| Spacing anomaly | 440 | Palette search margin inconsistency, nav item gap deviation |
+| Containment | 231 | Form sections overflowing container, node card edge protrusion |
+| Stacking | 155 | `z-index` on `position: static`, stacking context traps, broken sticky |
+| Accessibility (semantic) | 114 | `aria-hidden` on focusable elements, broken label-for, empty buttons |
+| Viewport overflow | 109 | Inspector tabs clipped at panel edge, pipeline nodes off-screen |
+| Truncation | 84 | YAML editor line numbers overflowing, text clipped by container |
+| Occlusion | 63 | Cross-level element coverage via `elementsFromPoint()` sampling |
+| Content duplication | — | Duplicate nav links, repeated images, landmark conflicts |
+| Aspect ratio | — | Images stretched/squished vs natural dimensions |
+
+### Noise reduction journey
+
+| Version | Errors | Warnings | Pages with 0 errors |
+|---|---|---|---|
+| v0.1 (initial) | 800+ | 2,500 | 13 |
+| v0.2 (noise reduction + severity resolver) | 113 | 1,818 | 59 |
+| **v0.3 (heuristics + semantic + occlusion)** | **106** | **2,073** | **55** |
+
+Errors reduced 87% from v0.1 through generic heuristics (negative margin detection, pointer-events:none layers, CSS gap as ground truth, intentionality scoring), not pattern-specific rules. Warning count increased in v0.3 because new diagnostics (semantic a11y checks, occlusion) add real findings.
 
 ### Precision by page type
 
-| Page type | Precision | Notes |
-|---|---|---|
-| Settings, forms, tables | ~50% | Highest signal — the pages agents build and iterate on |
-| Modals, dialogs | ~30% | Modal backdrop overlaps are filtered |
-| Canvas / node-graph editors | ~5% | Layered absolute positioning is architecturally noisy |
-| Component libraries | ~3% | Edge-mounted ports and badges dominate |
-
-Snug is most valuable on the pages AI agents actually generate — forms, tables, dashboards, and settings screens. Canvas editors with hundreds of absolutely-positioned layers produce more noise, though real bugs (truncation, stacking violations) are still caught within the noise.
+| Page type | Notes |
+|---|---|
+| Settings, forms, tables | Highest signal — the pages agents build and iterate on |
+| Modals, dialogs | Intentionality scoring filters modal backdrop noise |
+| Canvas / node-graph editors | Real bugs (truncation, stacking) caught within canvas architecture noise |
+| Component libraries | Edge-mounted ports suppressed, semantic checks add value |
 
 ### Clean page detection
 
-55 of 99 tested pages had zero layout errors. Pages with no issues correctly report `0 errors, 0 warnings` — Snug doesn't cry wolf on well-built layouts.
+55 of 99 tested pages had zero errors. Pages with no issues correctly report clean — Snug doesn't cry wolf on well-built layouts.
 
 ## Contributing
 
