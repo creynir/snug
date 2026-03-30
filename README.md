@@ -1,15 +1,10 @@
-<h1 align="center">
-  <img src="assets/logo.svg" alt="" width="36" style="vertical-align: middle;" />
-  Snug
-</h1>
+<p align="center"><img src="assets/logo.svg" alt="Snug" width="120" /></p>
 
-<p align="center"><strong>Layout diagnostics for AI agents.</strong> Math instead of pixels.</p>
+# snug
 
-<p align="center">
-  <a href="https://www.npmjs.com/package/snug-cli"><img src="https://img.shields.io/npm/v/snug-cli" alt="npm version" /></a>
-  <a href="https://www.npmjs.com/package/snug-cli"><img src="https://img.shields.io/npm/dw/snug-cli" alt="npm downloads" /></a>
-  <a href="https://github.com/creynir/snug/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/snug-cli" alt="license" /></a>
-</p>
+**Layout diagnostics for AI agents.** Math instead of pixels.
+
+[![npm version](https://img.shields.io/npm/v/snug-cli)](https://www.npmjs.com/package/snug-cli) [![npm downloads](https://img.shields.io/npm/dw/snug-cli)](https://www.npmjs.com/package/snug-cli) [![license](https://img.shields.io/npm/l/snug-cli)](https://github.com/creynir/snug/blob/main/LICENSE)
 
 <p align="center">
   <img src="assets/demo.gif" alt="snug check running against an HTML file" width="800" />
